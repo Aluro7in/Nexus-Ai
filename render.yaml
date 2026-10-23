@@ -1,0 +1,32 @@
+# Nexus AI — Render Web Service Blueprint
+# Target Service: nexus-core
+# Host: Render (Native Node.js Web Service — Free Tier)
+# Frontend Target: Vercel
+
+services:
+  - type: web
+    name: nexus-core
+    runtime: node
+    plan: free
+    rootDir: nexus-core
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: STORAGE_MODE
+        value: firestore
+      - key: FIREBASE_PROJECT_ID
+        value: gen-lang-client-0651785302
+      - key: FIRESTORE_DATABASE_ID
+        value: ai-studio-40b77d86-67e9-478a-842f-5d3005fb8e46
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        value: /etc/secrets/nexus-core-service-account.json
+      - key: DEV_AUTH_BYPASS
+        value: "false"
+      - key: ALLOWED_ORIGINS
+        sync: false

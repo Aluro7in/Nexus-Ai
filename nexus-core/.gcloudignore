@@ -1,0 +1,41 @@
+# Cloud Build ignore file for Nexus Core
+.gcloudignore
+.git
+.gitignore
+.gitattributes
+
+# Dependencies (built in Cloud Build)
+node_modules/
+
+# Test directories and scripts
+test/
+scripts/
+coverage/
+
+# Environment files and secrets
+.env
+.env.*
+*.local
+*.key
+*.pem
+*.p12
+*.json-key
+*credentials*.json
+*service-account*.json
+application_default_credentials.json
+serviceAccountKey.json
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Other repositories / subprojects
+backend/
+nexus-web/
+docs/

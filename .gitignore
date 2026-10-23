@@ -1,0 +1,23 @@
+# Root gitignore for Nexus AI
+node_modules/
+dist/
+build/
+coverage/
+
+.env
+.env.*
+*.local
+*.key
+*.pem
+*.p12
+*.json-key
+*credentials*.json
+*service-account*.json
+application_default_credentials.json
+serviceAccountKey.json
+
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
