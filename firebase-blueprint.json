@@ -1,0 +1,151 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "displayName": { "type": "string", "maxLength": 128 },
+        "photoURL": { "type": "string", "maxLength": 512 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["userId", "email"]
+    },
+    "UserPreference": {
+      "title": "UserPreference",
+      "description": "User ambient settings and voice preferences",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "voiceName": { "type": "string", "maxLength": 64 },
+        "ambientTheme": { "type": "string", "maxLength": 64 },
+        "autoSpeak": { "type": "boolean" },
+        "mcpBackendUrl": { "type": "string", "maxLength": 512 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["userId"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "Chat and voice session threads",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 256 },
+        "lastMessage": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["userId", "title"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Individual message in a conversation",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "conversationId": { "type": "string", "maxLength": 128 },
+        "role": { "type": "string", "enum": ["user", "assistant", "system"] },
+        "content": { "type": "string", "maxLength": 10000 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["userId", "conversationId", "role", "content"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "User reminders and action tasks",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 256 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"] },
+        "status": { "type": "string", "enum": ["pending", "in_progress", "completed", "cancelled"] },
+        "dueDate": { "type": "string", "maxLength": 64 },
+        "category": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["userId", "title", "status"]
+    },
+    "Workflow": {
+      "title": "Workflow",
+      "description": "Multi-step automated ambient execution workflows",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 256 },
+        "status": { "type": "string", "enum": ["idle", "running", "completed", "failed", "pending_approval"] },
+        "triggerType": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["userId", "title", "status"]
+    },
+    "Memory": {
+      "title": "Memory",
+      "description": "Personalized context and remembered preferences",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "category": { "type": "string", "maxLength": 64 },
+        "key": { "type": "string", "maxLength": 128 },
+        "value": { "type": "string", "maxLength": 2000 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["userId", "key", "value"]
+    },
+    "CommerceOrder": {
+      "title": "CommerceOrder",
+      "description": "Voice-initiated commerce and product orders",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 256 },
+        "totalAmount": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 16 },
+        "status": { "type": "string", "enum": ["draft", "pending_approval", "approved", "fulfilled", "cancelled"] },
+        "approvalRequired": { "type": "boolean" },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["userId", "title", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profile document"
+    },
+    "/user_preferences/{userId}": {
+      "schema": { "$ref": "#/entities/UserPreference" },
+      "description": "User voice and ambient display preferences"
+    },
+    "/conversations/{conversationId}": {
+      "schema": { "$ref": "#/entities/Conversation" },
+      "description": "Conversations list for user"
+    },
+    "/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Messages belonging to conversations"
+    },
+    "/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/Task" },
+      "description": "User task items"
+    },
+    "/workflows/{workflowId}": {
+      "schema": { "$ref": "#/entities/Workflow" },
+      "description": "Workflow executions"
+    },
+    "/memories/{memoryId}": {
+      "schema": { "$ref": "#/entities/Memory" },
+      "description": "Ambient personalized memories"
+    },
+    "/commerce_orders/{orderId}": {
+      "schema": { "$ref": "#/entities/CommerceOrder" },
+      "description": "Commerce and checkout orders"
+    }
+  }
+}

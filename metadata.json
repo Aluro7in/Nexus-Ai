@@ -1,0 +1,6 @@
+{
+  "name": "Nexus AI",
+  "description": "Ambient personal and digital operating system for the Amazon Developer Hackathon's Alexa+ track.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
