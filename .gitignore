@@ -1,12 +1,17 @@
-# Root gitignore for Nexus AI
+
+# Nexus AI — dependencies and build output
 node_modules/
 dist/
 build/
 coverage/
 
+# Environment variables and local configuration
 .env
 .env.*
+!.env.example
 *.local
+
+# Secrets, keys, certificates, and credentials
 *.key
 *.pem
 *.p12
@@ -16,8 +21,12 @@ coverage/
 application_default_credentials.json
 serviceAccountKey.json
 
+# IDE and operating system files
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Logs
 *.log
+
