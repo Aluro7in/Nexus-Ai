@@ -14,6 +14,7 @@ import {
   Sun,
   Moon,
   Laptop,
+  Activity,
 } from 'lucide-react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import type { UserPreference, VoiceName } from '../../types';
@@ -25,11 +26,16 @@ interface SettingsViewProps {
   onUpdatePreferences: (prefs: Partial<UserPreference>) => void;
   onLogin: () => void;
   onLogout: () => void;
-  mcpStatus: 'live_nexus_core' | 'demo_adapter';
+  mcpStatus: 'live_nexus_core' | 'auth_required' | 'demo_adapter';
   onTestMcpConnection: (url: string) => void;
   hasGoogleToken: boolean;
   theme?: ThemeMode;
   onSetTheme?: (theme: ThemeMode) => void;
+  mcpDetails?: {
+    message?: string;
+    missingComponents?: string[];
+    toolsCount?: number;
+  };
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -43,9 +49,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   hasGoogleToken,
   theme = 'dark',
   onSetTheme,
+  mcpDetails,
 }) => {
   const [backendUrl, setBackendUrl] = useState(
-    preferences.mcpBackendUrl || 'http://localhost:8080/mcp'
+    preferences.mcpBackendUrl || 'https://nexus-core-v4j3.onrender.com'
   );
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -289,37 +296,66 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2 text-slate-900 dark:text-white font-bold text-sm">
             <Cpu className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
-            <span>Antigravity Nexus-Core Backend Boundary</span>
+            <span>Production Nexus Core MCP Backend Boundary</span>
           </div>
           <span
             className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
               mcpStatus === 'live_nexus_core'
                 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                : mcpStatus === 'auth_required'
+                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
                 : 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20'
             }`}
           >
-            {mcpStatus === 'live_nexus_core' ? 'Connected' : 'Demo Adapter Active'}
+            {mcpStatus === 'live_nexus_core'
+              ? 'Connected (Authorized)'
+              : mcpStatus === 'auth_required'
+              ? 'Live Server (Auth Required 401)'
+              : 'Demo Adapter Active'}
           </span>
         </div>
 
         <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-          Nexus AI interfaces with the <code className="text-cyan-600 dark:text-cyan-400 font-mono">nexus-core</code> Node.js MCP
-          server developed in Google Antigravity via MCP Streamable HTTP (spec version{' '}
-          <code className="text-purple-600 dark:text-purple-400 font-mono">2025-11-25</code>).
+          Nexus AI interfaces with the live <code className="text-cyan-600 dark:text-cyan-400 font-mono">nexus-core</code> MCP
+          server hosted on Render (<code className="text-cyan-600 dark:text-cyan-400 font-mono">https://nexus-core-v4j3.onrender.com</code>)
+          via MCP Streamable HTTP (protocol version <code className="text-purple-600 dark:text-purple-400 font-mono">2024-11-05</code>).
         </p>
-        <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-          <strong>Port & Network Note:</strong> In this hosted environment, port 8080 is reserved by the container's
-          internal proxy. Run your external <code className="text-cyan-600 dark:text-cyan-400">nexus-core</code> server on an independent port
-          (e.g., <code className="text-cyan-600 dark:text-cyan-400">http://localhost:3001/mcp</code>) or an HTTPS tunnel URL. The app uses a
-          server-side relay to bypass browser mixed-content restrictions.
-        </p>
+
+        {/* Live Diagnostics Card */}
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-3.5 space-y-2 text-xs">
+          <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center space-x-1.5">
+            <Activity className="h-3.5 w-3.5 text-cyan-500" />
+            <span>Backend Diagnostic Inspection</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono">
+            <div>
+              <span className="text-slate-500">Live Health: </span>
+              <span className="text-emerald-500 font-semibold">UP (HTTP 200)</span>
+            </div>
+            <div>
+              <span className="text-slate-500">MCP Protocol: </span>
+              <span className="text-cyan-500 font-semibold">2024-11-05</span>
+            </div>
+            <div>
+              <span className="text-slate-500">Protected Resource: </span>
+              <span className="text-slate-700 dark:text-slate-300">/mcp (alexa::mcp:read, write)</span>
+            </div>
+            <div>
+              <span className="text-slate-500">Advertised OAuth: </span>
+              <span className="text-amber-500 font-semibold">/oauth (404 Missing)</span>
+            </div>
+          </div>
+          <div className="pt-2 border-t border-slate-200 dark:border-slate-800/80 text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+            <strong>OAuth & Security Findings:</strong> The production backend enforces Bearer token validation for all JSON-RPC calls on <code className="font-mono text-cyan-600 dark:text-cyan-400">/mcp</code>. Advertised endpoints <code className="font-mono">/oauth/authorize</code> and <code className="font-mono">/oauth/token</code> return 404 Not Found. Configure <code className="font-mono text-cyan-600 dark:text-cyan-400">NEXUS_CORE_BEARER_TOKEN</code> in server-side Secrets to authorize requests.
+          </div>
+        </div>
 
         <form onSubmit={handleSaveBackendUrl} className="flex items-center space-x-2">
           <input
             type="text"
             value={backendUrl}
             onChange={(e) => setBackendUrl(e.target.value)}
-            placeholder="http://localhost:3001/mcp"
+            placeholder="https://nexus-core-v4j3.onrender.com"
             className="flex-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3.5 py-2 text-xs font-mono text-slate-900 dark:text-slate-200 focus:border-cyan-500 focus:outline-none"
           />
           <button

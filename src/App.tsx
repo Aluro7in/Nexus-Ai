@@ -80,8 +80,13 @@ export default function App() {
   const [transcript, setTranscript] = useState('');
   const [assistantReply, setAssistantReply] = useState('');
 
-  // 4. MCP Status
-  const [mcpStatus, setMcpStatus] = useState<'live_nexus_core' | 'demo_adapter'>('demo_adapter');
+  // 4. MCP Status & Diagnostics
+  const [mcpStatus, setMcpStatus] = useState<'live_nexus_core' | 'auth_required' | 'demo_adapter'>('demo_adapter');
+  const [mcpDetails, setMcpDetails] = useState<{
+    message?: string;
+    missingComponents?: string[];
+    toolsCount?: number;
+  }>({});
 
   // 5. User Preferences
   const [preferences, setPreferences] = useState<UserPreference>({
@@ -89,7 +94,7 @@ export default function App() {
     voiceName: 'Zephyr',
     ambientTheme: 'cyber-dark',
     autoSpeak: true,
-    mcpBackendUrl: 'http://localhost:8080/mcp',
+    mcpBackendUrl: 'https://nexus-core-v4j3.onrender.com',
   });
 
   // 6. Workspace Data
@@ -311,9 +316,20 @@ export default function App() {
   useEffect(() => {
     testFirestoreConnection();
 
-    // Check MCP Core status
+    // Check production MCP Core status
     mcpClient.checkStatus().then((res) => {
-      setMcpStatus(res.mode);
+      if (res.state === 'connected') {
+        setMcpStatus('live_nexus_core');
+      } else if (res.state === 'auth_required') {
+        setMcpStatus('auth_required');
+      } else {
+        setMcpStatus('demo_adapter');
+      }
+      setMcpDetails({
+        message: res.message,
+        missingComponents: res.missingComponents,
+        toolsCount: res.toolsCount,
+      });
     });
 
     const unsubscribe = initAuth(
@@ -856,6 +872,7 @@ export default function App() {
               hasGoogleToken={hasGoogleToken}
               onConnectGoogle={handleLogin}
               mcpStatus={mcpStatus}
+              mcpDetails={mcpDetails}
               onTestApi={(name) => {
                 audioEngine.speak(`Testing integration query for ${name}`, preferences.voiceName, true);
               }}
@@ -876,9 +893,23 @@ export default function App() {
               onLogin={handleLogin}
               onLogout={handleLogout}
               mcpStatus={mcpStatus}
+              mcpDetails={mcpDetails}
               onTestMcpConnection={(url) => {
                 mcpClient.setBaseUrl(url);
-                mcpClient.checkStatus().then((res) => setMcpStatus(res.mode));
+                mcpClient.checkStatus().then((res) => {
+                  if (res.state === 'connected') {
+                    setMcpStatus('live_nexus_core');
+                  } else if (res.state === 'auth_required') {
+                    setMcpStatus('auth_required');
+                  } else {
+                    setMcpStatus('demo_adapter');
+                  }
+                  setMcpDetails({
+                    message: res.message,
+                    missingComponents: res.missingComponents,
+                    toolsCount: res.toolsCount,
+                  });
+                });
               }}
               hasGoogleToken={hasGoogleToken}
               theme={theme}

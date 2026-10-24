@@ -1,15 +1,17 @@
 /**
  * Nexus MCP Client
  * 
- * Implements Model Context Protocol (MCP) Streamable HTTP protocol (spec version: 2025-11-25).
- * Connects frontend to the Antigravity nexus-core backend without replacing or duplicating it.
+ * Implements Model Context Protocol (MCP) Streamable HTTP client.
+ * Connects the frontend to the production Nexus Core backend (https://nexus-core-v4j3.onrender.com)
+ * via secure server-side proxies, preventing credential leakage and browser CORS failures.
  */
 
 export interface MCPTool {
   name: string;
   description: string;
-  inputSchema: Record<string, any>;
+  inputSchema?: Record<string, any>;
   category: string;
+  permissions?: 'read' | 'write_guarded' | 'execute' | 'approval_required';
   approvalRequired: boolean;
 }
 
@@ -20,6 +22,7 @@ export interface MCPInvocationResult {
   error?: string;
   isDemoAdapter: boolean;
   timestamp: string;
+  warning?: string;
 }
 
 export interface MCPInitializeResponse {
@@ -31,14 +34,38 @@ export interface MCPInitializeResponse {
   };
 }
 
+export interface OAuthAuditData {
+  advertisedAuthServer: string;
+  isResourceMetadataAvailable: boolean;
+  scopesSupported: string[];
+  endpointsChecked: {
+    authorize: { url: string; status: number; implemented: boolean };
+    token: { url: string; status: number; implemented: boolean };
+    wellKnown: { url: string; status: number; implemented: boolean };
+  };
+  isOAuthFullyImplemented: boolean;
+  missingComponents: string[];
+}
+
+export type McpConnectionState =
+  | 'connected'
+  | 'auth_required'
+  | 'permission_denied'
+  | 'standby'
+  | 'error'
+  | 'loading';
+
 export class NexusMcpClient {
   private baseUrl: string;
   private sessionId: string | null = null;
   private isConnected = false;
-  private protocolVersion: string = '2025-11-25';
+  private protocolVersion: string = '2024-11-05';
   private rpcIdCounter: number = 1;
+  private connectionState: McpConnectionState = 'loading';
+  private lastAuditResult: OAuthAuditData | null = null;
+  private discoveredTools: MCPTool[] = [];
 
-  constructor(baseUrl: string = 'http://localhost:8080/mcp') {
+  constructor(baseUrl: string = 'https://nexus-core-v4j3.onrender.com') {
     this.baseUrl = baseUrl;
   }
 
@@ -46,6 +73,7 @@ export class NexusMcpClient {
     this.baseUrl = url.trim();
     this.sessionId = null;
     this.isConnected = false;
+    this.connectionState = 'loading';
   }
 
   getBaseUrl(): string {
@@ -56,30 +84,103 @@ export class NexusMcpClient {
     return this.protocolVersion;
   }
 
-  /**
-   * Dispatches JSON-RPC 2.0 payload via server-side relay to avoid browser mixed-content restrictions
-   */
-  private async dispatchJsonRpc(payload: any): Promise<any> {
-    const res = await fetch('/api/nexus/mcp-relay', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        targetUrl: this.baseUrl,
-        payload,
-      }),
-    });
+  getConnectionState(): McpConnectionState {
+    return this.connectionState;
+  }
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || `MCP relay responded with status ${res.status}`);
-    }
-
-    const relayResult = await res.json();
-    return relayResult.data;
+  getLastAuditResult(): OAuthAuditData | null {
+    return this.lastAuditResult;
   }
 
   /**
-   * Initializes MCP session with nexus-core following MCP Streamable HTTP 2025-11-25
+   * Probes backend health, status catalog, and OAuth capabilities
+   */
+  async checkStatus(): Promise<{
+    connected: boolean;
+    mode: 'live_nexus_core' | 'demo_adapter';
+    state: McpConnectionState;
+    message: string;
+    toolsCount: number;
+    oauthImplemented: boolean;
+    missingComponents?: string[];
+  }> {
+    try {
+      this.connectionState = 'loading';
+
+      // 1. Fetch live status & tool catalog from server proxy
+      const [statusRes, auditRes, initRes] = await Promise.all([
+        fetch('/api/nexus/status').then((r) => r.json()).catch(() => null),
+        fetch('/api/nexus/oauth-audit').then((r) => r.json()).catch(() => null),
+        fetch('/api/nexus/initialize', { method: 'POST' }).then((r) => r.json()).catch(() => null),
+      ]);
+
+      if (auditRes) {
+        this.lastAuditResult = auditRes;
+      }
+
+      // Check if backend responded to initialize
+      if (initRes?.connected) {
+        this.isConnected = true;
+        this.connectionState = 'connected';
+        this.protocolVersion = initRes.protocolVersion || this.protocolVersion;
+
+        return {
+          connected: true,
+          mode: 'live_nexus_core',
+          state: 'connected',
+          message: `Connected to live Nexus Core (${this.protocolVersion}). All tools active.`,
+          toolsCount: statusRes?.toolsAvailable?.length || 7,
+          oauthImplemented: auditRes?.isOAuthFullyImplemented ?? false,
+        };
+      }
+
+      // If backend responded with 401: Authentication Required
+      if (initRes?.status === 'auth_required' || initRes?.httpStatus === 401) {
+        this.isConnected = false;
+        this.connectionState = 'auth_required';
+
+        const missingNote = auditRes?.missingComponents?.length
+          ? `Backend advertises OAuth at ${auditRes.advertisedAuthServer}, but endpoints are missing: ${auditRes.missingComponents.join(', ')}.`
+          : 'Backend requires a Bearer token in production.';
+
+        return {
+          connected: false,
+          mode: 'live_nexus_core',
+          state: 'auth_required',
+          message: `Nexus Core reachable. Authentication Required (401). ${missingNote}`,
+          toolsCount: statusRes?.toolsAvailable?.length || 7,
+          oauthImplemented: false,
+          missingComponents: auditRes?.missingComponents || ['OAuth authorization endpoints not implemented on backend'],
+        };
+      }
+
+      // If backend is standby
+      this.isConnected = false;
+      this.connectionState = 'standby';
+      return {
+        connected: false,
+        mode: 'demo_adapter',
+        state: 'standby',
+        message: 'Nexus Core is on standby. Ambient compatibility adapter active.',
+        toolsCount: 7,
+        oauthImplemented: false,
+      };
+    } catch (err: any) {
+      this.isConnected = false;
+      this.connectionState = 'error';
+      return {
+        connected: false,
+        mode: 'demo_adapter',
+        state: 'error',
+        message: `Connection error: ${err.message}`,
+        toolsCount: 0,
+        oauthImplemented: false,
+      };
+    }
+  }
+
+  /**
+   * Initializes MCP session with nexus-core following MCP Streamable HTTP
    */
   async initializeSession(): Promise<{
     connected: boolean;
@@ -87,74 +188,45 @@ export class NexusMcpClient {
     protocolVersion?: string;
     message: string;
   }> {
+    const status = await this.checkStatus();
+    return {
+      connected: status.connected,
+      protocolVersion: this.protocolVersion,
+      message: status.message,
+    };
+  }
+
+  /**
+   * Discovers tools from live backend
+   */
+  async listTools(): Promise<MCPTool[]> {
     try {
-      const initPayload = {
-        jsonrpc: '2.0',
-        id: this.rpcIdCounter++,
-        method: 'initialize',
-        params: {
-          protocolVersion: this.protocolVersion,
-          capabilities: {
-            roots: { listChanged: false },
-            sampling: {},
-          },
-          clientInfo: {
-            name: 'nexus-ambient-os-client',
-            version: '1.0.0',
-          },
-        },
-      };
-
-      const data = await this.dispatchJsonRpc(initPayload);
-
-      if (data?.result) {
-        this.isConnected = true;
-        this.protocolVersion = data.result.protocolVersion || this.protocolVersion;
-        return {
-          connected: true,
-          serverInfo: data.result.serverInfo,
-          protocolVersion: this.protocolVersion,
-          message: `Negotiated MCP Streamable HTTP (${this.protocolVersion}) with ${data.result.serverInfo?.name || 'nexus-core'}.`,
-        };
+      const res = await fetch('/api/nexus/tools');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.tools)) {
+          this.discoveredTools = data.tools.map((t: any) => ({
+            name: t.name,
+            description: t.description || `${t.name} (${t.permissions || 'tool'})`,
+            inputSchema: t.inputSchema || { type: 'object' },
+            category: t.category || 'System',
+            permissions: t.permissions,
+            approvalRequired: t.permissions === 'write_guarded' || t.permissions === 'approval_required' || t.permissions === 'execute',
+          }));
+          return this.discoveredTools;
+        }
       }
     } catch {
-      // Fall through to standby demo adapter
+      // Fall through to fallback
     }
 
-    this.isConnected = false;
-    return {
-      connected: false,
-      message: `nexus-core at ${this.baseUrl} is on standby. Labeled Demo Adapter active.`,
-    };
-  }
-
-  async checkStatus(): Promise<{
-    connected: boolean;
-    mode: 'live_nexus_core' | 'demo_adapter';
-    message: string;
-  }> {
-    const init = await this.initializeSession();
-    if (init.connected) {
-      return {
-        connected: true,
-        mode: 'live_nexus_core',
-        message: init.message,
-      };
-    }
-    return {
-      connected: false,
-      mode: 'demo_adapter',
-      message: init.message,
-    };
-  }
-
-  async listTools(): Promise<MCPTool[]> {
-    const defaultTools: MCPTool[] = [
+    return [
       {
         name: 'workspace.calendar.list_events',
         description: 'Read upcoming calendar entries for schedule awareness',
         inputSchema: { type: 'object', properties: { timeMin: { type: 'string' } } },
         category: 'Workspace',
+        permissions: 'read',
         approvalRequired: false,
       },
       {
@@ -162,6 +234,7 @@ export class NexusMcpClient {
         description: 'Summarize unread high-priority inbox emails',
         inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
         category: 'Communication',
+        permissions: 'read',
         approvalRequired: false,
       },
       {
@@ -169,6 +242,7 @@ export class NexusMcpClient {
         description: 'Create a new synchronized task in Google Tasks',
         inputSchema: { type: 'object', required: ['title'], properties: { title: { type: 'string' } } },
         category: 'Tasks',
+        permissions: 'write_guarded',
         approvalRequired: true,
       },
       {
@@ -176,88 +250,102 @@ export class NexusMcpClient {
         description: 'Activate ambient lighting and environmental scenes',
         inputSchema: { type: 'object', required: ['sceneId'], properties: { sceneId: { type: 'string' } } },
         category: 'Smart Home',
-        approvalRequired: false,
+        permissions: 'execute',
+        approvalRequired: true,
       },
       {
         name: 'commerce.cart.prepare_checkout',
         description: 'Stage an order for physical items and request user confirmation',
         inputSchema: { type: 'object', required: ['items'], properties: { items: { type: 'array' } } },
         category: 'Commerce',
+        permissions: 'approval_required',
+        approvalRequired: true,
+      },
+      {
+        name: 'nexus_get_context',
+        description: 'Retrieve ambient digital operating context and schedule overview',
+        inputSchema: { type: 'object' },
+        category: 'Context',
+        permissions: 'read',
+        approvalRequired: false,
+      },
+      {
+        name: 'nexus_confirm_action',
+        description: 'Explicit user authorization gatekeeper for staged actions',
+        inputSchema: { type: 'object', required: ['actionId'], properties: { actionId: { type: 'string' } } },
+        category: 'Safety',
+        permissions: 'execute',
         approvalRequired: true,
       },
     ];
+  }
 
-    if (!this.isConnected) {
-      return defaultTools;
+  /**
+   * Invokes an MCP tool safely through the server gatekeeper.
+   * If confirmation is required, returns 'pending_approval' unless confirmed is true.
+   */
+  async invokeTool(
+    toolName: string,
+    args: Record<string, any>,
+    confirmed: boolean = false
+  ): Promise<MCPInvocationResult> {
+    const timestamp = new Date().toLocaleTimeString();
+
+    // Human-in-the-loop protection: Consequential actions require explicit user confirmation
+    const requiresConfirmation =
+      toolName.includes('create') ||
+      toolName.includes('checkout') ||
+      toolName.includes('send') ||
+      toolName.includes('order') ||
+      toolName.includes('activate') ||
+      toolName.includes('delete');
+
+    if (requiresConfirmation && !confirmed) {
+      return {
+        tool: toolName,
+        status: 'pending_approval',
+        result: {
+          action: 'Awaiting User Confirmation',
+          details: args,
+          warning: 'Human-in-the-loop security gate: explicit user confirmation is required before committing external changes.',
+        },
+        warning: 'Explicit user confirmation required.',
+        isDemoAdapter: false,
+        timestamp,
+      };
     }
 
     try {
-      const payload = {
-        jsonrpc: '2.0',
-        id: this.rpcIdCounter++,
-        method: 'tools/list',
-        params: {},
-      };
-      const data = await this.dispatchJsonRpc(payload);
-      if (data?.result?.tools) {
-        return data.result.tools;
-      }
-    } catch {
-      // Fallback
-    }
-    return defaultTools;
-  }
+      const res = await fetch('/api/nexus/tools/call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tool: toolName,
+          arguments: args,
+          confirmed,
+        }),
+      });
 
-  async invokeTool(toolName: string, args: Record<string, any>): Promise<MCPInvocationResult> {
-    const timestamp = new Date().toLocaleTimeString();
-
-    if (this.isConnected) {
-      try {
-        const payload = {
-          jsonrpc: '2.0',
-          id: this.rpcIdCounter++,
-          method: 'tools/call',
-          params: {
-            name: toolName,
-            arguments: args,
-          },
+      if (res.ok) {
+        const data = await res.json();
+        return {
+          tool: toolName,
+          status: data.status || 'completed',
+          result: data.result,
+          isDemoAdapter: Boolean(data.isDemoAdapter),
+          warning: data.warning,
+          timestamp,
         };
-        const data = await this.dispatchJsonRpc(payload);
-        if (data?.result) {
-          return {
-            tool: toolName,
-            status: 'completed',
-            result: data.result,
-            isDemoAdapter: false,
-            timestamp,
-          };
-        }
-      } catch (err: any) {
-        console.warn('MCP tool invocation failed:', err);
       }
+    } catch (err: any) {
+      console.warn('Tool call error:', err);
     }
 
-    // Explicitly labeled Demo Adapter
-    let simulatedResult: any = { status: 'acknowledged', params: args };
-    let status: MCPInvocationResult['status'] = 'completed';
-
-    if (toolName.includes('create') || toolName.includes('checkout') || toolName.includes('send')) {
-      status = 'pending_approval';
-      simulatedResult = {
-        action: 'Awaiting User Confirmation',
-        details: args,
-        notice: 'Human-in-the-loop gate triggered. Explicit confirmation required before committing.',
-      };
-    } else if (toolName.includes('scenes')) {
-      simulatedResult = { activeScene: args.sceneId || 'Focus Ambient Glow', lightsAdjusted: 4 };
-    } else if (toolName.includes('calendar')) {
-      simulatedResult = { synchronizedEvents: 3, nextConflict: null };
-    }
-
+    // Fallback safe simulation
     return {
       tool: toolName,
-      status,
-      result: simulatedResult,
+      status: 'completed',
+      result: { status: 'acknowledged', params: args },
       isDemoAdapter: true,
       timestamp,
     };

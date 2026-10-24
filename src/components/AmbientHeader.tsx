@@ -22,7 +22,7 @@ interface AmbientHeaderProps {
   audioStatus: 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
   isMuted: boolean;
   onToggleMute: () => void;
-  mcpStatus: 'live_nexus_core' | 'demo_adapter';
+  mcpStatus: 'live_nexus_core' | 'auth_required' | 'demo_adapter';
   activeView: string;
   onNavigate: (view: string) => void;
   isDark?: boolean;
@@ -90,7 +90,14 @@ export const AmbientHeader: React.FC<AmbientHeaderProps> = ({
             <div className="hidden text-[11px] text-slate-500 dark:text-slate-400 sm:flex items-center space-x-2">
               <span className="flex items-center space-x-1">
                 <Cpu className="h-3 w-3 text-cyan-500 dark:text-cyan-400/80" />
-                <span>MCP: {mcpStatus === 'live_nexus_core' ? 'Nexus Core Live' : 'Demo Adapter'}</span>
+                <span>
+                  MCP:{' '}
+                  {mcpStatus === 'live_nexus_core'
+                    ? 'Nexus Core Live'
+                    : mcpStatus === 'auth_required'
+                    ? 'Auth Required (401)'
+                    : 'Demo Adapter'}
+                </span>
               </span>
               <span>•</span>
               <span className="text-slate-500 dark:text-slate-400">Ambient OS</span>

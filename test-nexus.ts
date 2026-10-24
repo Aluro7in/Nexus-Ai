@@ -282,6 +282,110 @@ async function runTestSuite() {
     }
   });
 
+  // 15. Production Nexus Core Live Health Probe
+  await recordTest('Production Nexus Core', 'GET /health on live backend returns HTTP 200 and status UP', async () => {
+    const { defaultNexusCoreClient } = await import('./server/nexusCoreClient');
+    const health = await defaultNexusCoreClient.checkHealth();
+    if (!health.isHealthy || !health.data) {
+      throw new Error(`Production health check failed: ${health.error || 'Unknown'}`);
+    }
+    if (health.data.status !== 'UP') {
+      throw new Error(`Expected status UP, got ${health.data.status}`);
+    }
+    if (typeof health.data.uptimeSeconds !== 'number') {
+      throw new Error('Missing uptimeSeconds in health response');
+    }
+  });
+
+  // 16. Production Nexus Core Tool Catalog & Protocol Discovery
+  await recordTest('Production Nexus Core', 'GET /api/nexus/status exposes MCP Streamable HTTP tool catalog', async () => {
+    const { defaultNexusCoreClient } = await import('./server/nexusCoreClient');
+    const statusRes = await defaultNexusCoreClient.getStatus();
+    if (!statusRes.success || !statusRes.data) {
+      throw new Error(`Status check failed: ${statusRes.error}`);
+    }
+    if (statusRes.data.backendName !== 'nexus-core') {
+      throw new Error(`Unexpected backendName: ${statusRes.data.backendName}`);
+    }
+    if (!Array.isArray(statusRes.data.toolsAvailable) || statusRes.data.toolsAvailable.length === 0) {
+      throw new Error('No tools returned in live backend catalog');
+    }
+    const toolNames = statusRes.data.toolsAvailable.map((t) => t.name);
+    if (!toolNames.includes('workspace.calendar.list_events') || !toolNames.includes('workspace.tasks.create')) {
+      throw new Error(`Expected core tools in catalog, got: ${toolNames.join(', ')}`);
+    }
+  });
+
+  // 17. Production Nexus Core OAuth & Protected Resource Audit
+  await recordTest('Production Nexus Core', 'Protected resource metadata and missing OAuth endpoints are accurately audited', async () => {
+    const { defaultNexusCoreClient } = await import('./server/nexusCoreClient');
+    const audit = await defaultNexusCoreClient.auditOAuthEndpoints();
+    if (!audit.isResourceMetadataAvailable) {
+      throw new Error('Failed to fetch protected resource metadata');
+    }
+    if (!audit.scopesSupported.includes('alexa::mcp:read')) {
+      throw new Error('Missing alexa::mcp:read scope in metadata');
+    }
+    // Verify that advertised OAuth endpoints /oauth/authorize and /oauth/token are verified as missing (404)
+    if (audit.isOAuthFullyImplemented) {
+      throw new Error('Expected audit to correctly identify missing /oauth endpoints on Render backend');
+    }
+    if (audit.missingComponents.length === 0) {
+      throw new Error('Expected missingComponents to list /oauth/authorize and /oauth/token');
+    }
+  });
+
+  // 18. Production MCP Credential Rejection (Missing Token)
+  await recordTest('Production Nexus Core', 'POST /mcp without Bearer token is rejected with HTTP 401', async () => {
+    const { defaultNexusCoreClient } = await import('./server/nexusCoreClient');
+    const init = await defaultNexusCoreClient.initializeSession();
+    if (init.connected) {
+      throw new Error('Expected unauthenticated request to be rejected');
+    }
+    if (init.status !== 'auth_required' && init.httpStatus !== 401) {
+      throw new Error(`Expected auth_required (401), got status: ${init.status}, code: ${init.httpStatus}`);
+    }
+  });
+
+  // 19. Production MCP Credential Rejection (Invalid/Forged Token)
+  await recordTest('Production Nexus Core', 'POST /mcp with invalid token is rejected with HTTP 401 Invalid or forged token', async () => {
+    const { defaultNexusCoreClient } = await import('./server/nexusCoreClient');
+    const init = await defaultNexusCoreClient.initializeSession('invalid_test_token_12345');
+    if (init.connected) {
+      throw new Error('Expected forged token request to be rejected');
+    }
+    if (init.status !== 'auth_required' && init.httpStatus !== 401) {
+      throw new Error(`Expected 401 rejection for forged token, got: ${init.status}`);
+    }
+  });
+
+  // 20. Human-in-the-Loop Gatekeeper for Consequential Actions
+  await recordTest('Safety & Tool Gatekeeper', 'POST /api/nexus/tools/call requires explicit confirmation for write tools', async () => {
+    const ctx = createMockContext('/api/nexus/tools/call', 'POST', {
+      tool: 'workspace.tasks.create',
+      arguments: { title: 'Order Supplies' },
+      confirmed: false,
+    });
+    const handled = await handleApiRoute(ctx.req, ctx.res);
+    if (!handled) throw new Error('Route was not handled');
+    const resp = ctx.getResponse();
+    if (resp.status !== 200) throw new Error(`Status ${resp.status}`);
+    if (resp.body.status !== 'pending_approval' || !resp.body.confirmationRequired) {
+      throw new Error(`Expected pending_approval, got: ${JSON.stringify(resp.body)}`);
+    }
+  });
+
+  // 21. Environment & Credential Hygiene
+  await recordTest('Security & Token Safety', 'Configuration and client bundles do not expose private tokens or secrets', async () => {
+    const envExample = fs.readFileSync('.env.example', 'utf8');
+    if (!envExample.includes('NEXUS_CORE_BASE_URL')) {
+      throw new Error('.env.example is missing NEXUS_CORE_BASE_URL');
+    }
+    if (envExample.includes('VITE_NEXUS_CORE_BEARER_TOKEN') || envExample.includes('VITE_GEMINI_API_KEY')) {
+      throw new Error('Found privileged credentials prefixed with browser-public VITE_ in .env.example');
+    }
+  });
+
   // Print Summary Table
   console.log('----------------------------------------------------');
   console.log('TEST RESULTS:');
