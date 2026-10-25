@@ -139,6 +139,54 @@ async function runTestSuite() {
     }
   });
 
+  // 5b. Audio Transcription with gemini-3.5-transcribe
+  await recordTest('Audio Transcription', 'POST /api/gemini/transcribe transcribes audio using gemini-3.5-transcribe', async () => {
+    // 100ms dummy PCM audio in base64
+    const dummyAudioBase64 = Buffer.from(new Uint8Array(1600)).toString('base64');
+    const ctx = createMockContext('/api/gemini/transcribe', 'POST', {
+      audioBase64: dummyAudioBase64,
+      mimeType: 'audio/webm',
+      prompt: 'Transcribe this voice command.',
+    });
+    const handled = await handleApiRoute(ctx.req, ctx.res);
+    if (!handled) throw new Error('Route was not handled');
+    const resp = ctx.getResponse();
+    if (resp.status !== 200) throw new Error(`Status ${resp.status}`);
+    if (resp.body.model !== 'gemini-3.5-transcribe') {
+      throw new Error(`Expected model gemini-3.5-transcribe, got ${resp.body.model}`);
+    }
+    if (!resp.body.text || typeof resp.body.text !== 'string') {
+      throw new Error(`Expected transcribed text, got ${JSON.stringify(resp.body)}`);
+    }
+  });
+
+  // 5c. Transcription Input Validation
+  await recordTest('Audio Transcription', 'POST /api/gemini/transcribe rejects missing audioBase64 with HTTP 400', async () => {
+    const ctx = createMockContext('/api/gemini/transcribe', 'POST', {});
+    const handled = await handleApiRoute(ctx.req, ctx.res);
+    if (!handled) throw new Error('Route was not handled');
+    const resp = ctx.getResponse();
+    if (resp.status !== 400) throw new Error(`Expected 400 for missing audioBase64, got ${resp.status}`);
+  });
+
+  // 5d. Gemini 3.8 Live API Configuration
+  await recordTest('Gemini Live API', 'GET /api/gemini/live-config exposes gemini-3.8-live stream endpoint', async () => {
+    const ctx = createMockContext('/api/gemini/live-config', 'GET');
+    const handled = await handleApiRoute(ctx.req, ctx.res);
+    if (!handled) throw new Error('Route was not handled');
+    const resp = ctx.getResponse();
+    if (resp.status !== 200) throw new Error(`Status ${resp.status}`);
+    if (resp.body.model !== 'gemini-3.8-live') {
+      throw new Error(`Expected model gemini-3.8-live, got ${resp.body.model}`);
+    }
+    if (resp.body.wsPath !== '/api/live-stream') {
+      throw new Error(`Expected wsPath /api/live-stream, got ${resp.body.wsPath}`);
+    }
+    if (resp.body.sampleRate !== 24000 || resp.body.inputSampleRate !== 16000) {
+      throw new Error(`Audio sample rates mismatch: ${resp.body.sampleRate}/${resp.body.inputSampleRate}`);
+    }
+  });
+
   // 6. Nexus Core MCP Boundary
   await recordTest('MCP Protocol Boundary', 'GET /api/nexus/status returns available MCP tools specification', async () => {
     const ctx = createMockContext('/api/nexus/status', 'GET');

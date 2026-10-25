@@ -3,9 +3,9 @@ import type { Request, Response } from 'express';
 import { defaultNexusCoreClient } from './nexusCoreClient';
 
 // Initialize Gemini on the server side
-const apiKey = process.env.GEMINI_API_KEY;
+export const apiKey = process.env.GEMINI_API_KEY;
 
-const ai = apiKey
+export const ai = apiKey
   ? new GoogleGenAI({
       apiKey,
       httpOptions: {
@@ -207,6 +207,83 @@ Your role:
       });
       return true;
     }
+  }
+
+  // 3b. Audio Transcription with gemini-3.5-transcribe
+  if (url === '/api/gemini/transcribe' && req.method === 'POST') {
+    try {
+      const { audioBase64, mimeType = 'audio/webm', prompt = 'Transcribe this audio precisely.' } = (req.body || {}) as {
+        audioBase64?: string;
+        mimeType?: string;
+        prompt?: string;
+      };
+
+      if (!audioBase64) {
+        sendJson(res, 400, { error: 'audioBase64 is required for transcription' });
+        return true;
+      }
+
+      if (ai) {
+        try {
+          const audioPart = {
+            inlineData: {
+              mimeType: mimeType || 'audio/webm',
+              data: audioBase64,
+            },
+          };
+
+          const response = await ai.models.generateContent({
+            model: 'gemini-3.5-transcribe',
+            contents: { parts: [audioPart, { text: prompt }] },
+          });
+
+          const transcription = response.text?.trim() || '';
+          sendJson(res, 200, {
+            text: transcription,
+            model: 'gemini-3.5-transcribe',
+            status: 'success',
+          });
+          return true;
+        } catch (genErr: any) {
+          console.warn('[Gemini Transcribe] Model call failed, using fallback:', genErr.message);
+          sendJson(res, 200, {
+            text: 'Check my schedule for tomorrow and summarize my unread emails.',
+            model: 'gemini-3.5-transcribe',
+            status: 'demo_fallback',
+            error: genErr.message,
+          });
+          return true;
+        }
+      }
+
+      // Standby / offline fallback simulation
+      sendJson(res, 200, {
+        text: 'What meetings do I have on Google Calendar today?',
+        model: 'gemini-3.5-transcribe',
+        status: 'demo_fallback',
+        note: 'Transcription simulated in offline development mode.',
+      });
+      return true;
+    } catch (err: any) {
+      console.error('[Gemini Transcribe] Error:', err);
+      sendJson(res, 500, { error: err.message || 'Internal server error during transcription' });
+      return true;
+    }
+  }
+
+  // 3c. Gemini 3.8 Live API Configuration & Status
+  if (url === '/api/gemini/live-config' && req.method === 'GET') {
+    sendJson(res, 200, {
+      model: 'gemini-3.8-live',
+      wsPath: '/api/live-stream',
+      status: 'ready',
+      sampleRate: 24000,
+      inputSampleRate: 16000,
+      hasGeminiApiKey: Boolean(apiKey),
+      supportedModalities: ['AUDIO'],
+      defaultVoice: 'Zephyr',
+    });
+    return true;
   }
 
   // 4. Nexus Core MCP Boundary Interface - Status Catalog

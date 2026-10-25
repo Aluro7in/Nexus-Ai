@@ -1,6 +1,9 @@
 import express from 'express';
+import http from 'http';
+import { WebSocketServer } from 'ws';
 import { createServer as createViteServer } from 'vite';
-import { handleApiRoute } from './server/api';
+import { handleApiRoute, ai, apiKey } from './server/api';
+import { setupGeminiLiveWebSocket } from './server/geminiLive';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
@@ -11,8 +14,9 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Middleware
-  app.use(express.json());
+  // Middleware with expanded limit for audio payloads
+  app.use(express.json({ limit: '20mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
   // API router
   app.use(async (req, res, next) => {
@@ -23,10 +27,29 @@ async function startServer() {
     next();
   });
 
+  const server = http.createServer(app);
+
+  // WebSocket Server for Gemini 3.8 Live API streaming
+  const wss = new WebSocketServer({ noServer: true });
+  setupGeminiLiveWebSocket(wss, ai, apiKey);
+
+  server.on('upgrade', (request, socket, head) => {
+    try {
+      const url = new URL(request.url || '', `http://${request.headers.host || 'localhost'}`);
+      if (url.pathname === '/api/live-stream') {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          wss.emit('connection', ws, request);
+        });
+      }
+    } catch {
+      // Ignore malformed upgrade URLs
+    }
+  });
+
   // Mount Vite in dev mode
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: { server } },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -53,8 +76,8 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Nexus AI server ready at http://0.0.0.0:${PORT}`);
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Nexus AI server ready at http://0.0.0.0:${PORT} (Gemini 3.8 Live WS at /api/live-stream)`);
   });
 }
 

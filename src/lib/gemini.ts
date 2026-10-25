@@ -86,3 +86,54 @@ export async function getEphemeralLiveToken(): Promise<{
   return await res.json();
 }
 
+export interface TranscribeResponse {
+  text: string;
+  model: string;
+  status: 'success' | 'demo_fallback';
+  error?: string;
+  note?: string;
+}
+
+export async function transcribeAudio(
+  audioBlob: Blob,
+  prompt: string = 'Transcribe this audio precisely.'
+): Promise<TranscribeResponse> {
+  const base64Audio = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const dataUrl = reader.result as string;
+      const base64 = dataUrl.split(',')[1] || '';
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(audioBlob);
+  });
+
+  const mimeType = audioBlob.type || 'audio/webm';
+  const res = await fetch('/api/gemini/transcribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ audioBase64: base64Audio, mimeType, prompt }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Transcription failed with HTTP ${res.status}`);
+  }
+
+  return await res.json();
+}
+
+export async function getLiveConfig(): Promise<{
+  model: string;
+  wsPath: string;
+  status: string;
+  sampleRate: number;
+  inputSampleRate: number;
+  hasGeminiApiKey: boolean;
+}> {
+  const res = await fetch('/api/gemini/live-config');
+  if (!res.ok) throw new Error('Failed to load Live API config');
+  return await res.json();
+}
+
