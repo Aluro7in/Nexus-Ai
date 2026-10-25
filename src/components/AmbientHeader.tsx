@@ -12,7 +12,9 @@ import {
   ShieldCheck,
   Sun,
   Moon,
+  HelpCircle,
 } from 'lucide-react';
+import { AudioWaveformVisualizer } from './AudioWaveformVisualizer';
 import type { User } from 'firebase/auth';
 
 interface AmbientHeaderProps {
@@ -27,6 +29,7 @@ interface AmbientHeaderProps {
   onNavigate: (view: string) => void;
   isDark?: boolean;
   onToggleTheme?: () => void;
+  onOpenOnboarding?: () => void;
 }
 
 export const AmbientHeader: React.FC<AmbientHeaderProps> = ({
@@ -39,6 +42,7 @@ export const AmbientHeader: React.FC<AmbientHeaderProps> = ({
   mcpStatus,
   isDark = true,
   onToggleTheme,
+  onOpenOnboarding,
 }) => {
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDate, setCurrentDate] = useState<string>('');
@@ -116,8 +120,8 @@ export const AmbientHeader: React.FC<AmbientHeaderProps> = ({
             </div>
           </div>
 
-          {/* Audio Engine Live Indicator */}
-          <div className="flex items-center space-x-2 rounded-full border border-slate-200 dark:border-slate-800/80 bg-slate-50/80 dark:bg-slate-900/50 px-3 py-1">
+          {/* Audio Engine Live Indicator & Mini Frequency Bars */}
+          <div className="flex items-center space-x-2 rounded-xl border border-slate-200 dark:border-slate-800/80 bg-slate-50/80 dark:bg-slate-900/50 px-3 py-1">
             <span
               className={`h-2 w-2 rounded-full ${
                 audioStatus === 'listening'
@@ -132,11 +136,26 @@ export const AmbientHeader: React.FC<AmbientHeaderProps> = ({
             <span className="text-[11px] font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
               {audioStatus}
             </span>
+            {(audioStatus === 'listening' || audioStatus === 'speaking') && (
+              <AudioWaveformVisualizer status={audioStatus} variant="compact" className="ml-1" />
+            )}
           </div>
         </div>
 
         {/* Actions & Profile */}
         <div className="flex items-center space-x-2.5">
+          {/* Onboarding Guide & Walkthrough */}
+          {onOpenOnboarding && (
+            <button
+              onClick={onOpenOnboarding}
+              aria-label="Open Nexus AI Onboarding Guide"
+              title="Nexus AI Onboarding Guide & Feature Tour"
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 text-slate-600 dark:text-slate-300 hover:border-cyan-500/50 hover:text-cyan-600 dark:hover:text-cyan-400 transition-all shadow-xs"
+            >
+              <HelpCircle className="h-4 w-4" />
+            </button>
+          )}
+
           {/* Dark / Light Mode Toggle */}
           <button
             onClick={onToggleTheme}

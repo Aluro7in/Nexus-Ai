@@ -15,6 +15,110 @@
   .animate-spin-slow {
     animation: spinSlow 12s linear infinite;
   }
+
+  /* Audio Waveform & Frequency Bar Keyframe Animations */
+  @keyframes waveformDrift1 {
+    0% {
+      transform: translateX(0);
+    }
+    50% {
+      transform: translateX(-40px);
+    }
+    100% {
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes waveformDrift2 {
+    0% {
+      transform: translateX(0);
+    }
+    50% {
+      transform: translateX(40px);
+    }
+    100% {
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes wavePulseGlow {
+    0%, 100% {
+      opacity: 0.4;
+      transform: scaleY(0.85);
+    }
+    50% {
+      opacity: 0.95;
+      transform: scaleY(1.15);
+    }
+  }
+
+  @keyframes freqBarA {
+    0%, 100% {
+      transform: scaleY(0.2);
+    }
+    50% {
+      transform: scaleY(0.95);
+    }
+  }
+
+  @keyframes freqBarB {
+    0%, 100% {
+      transform: scaleY(0.35);
+    }
+    50% {
+      transform: scaleY(0.75);
+    }
+  }
+
+  @keyframes freqBarC {
+    0%, 100% {
+      transform: scaleY(0.15);
+    }
+    50% {
+      transform: scaleY(1);
+    }
+  }
+
+  @keyframes freqBarD {
+    0%, 100% {
+      transform: scaleY(0.28);
+    }
+    50% {
+      transform: scaleY(0.82);
+    }
+  }
+
+  .animate-waveform-1 {
+    animation: waveformDrift1 4s ease-in-out infinite;
+  }
+
+  .animate-waveform-2 {
+    animation: waveformDrift2 5.5s ease-in-out infinite;
+  }
+
+  .animate-wave-pulse {
+    animation: wavePulseGlow 2.5s ease-in-out infinite;
+  }
+
+  .animate-freq-a {
+    animation: freqBarA 0.8s ease-in-out infinite;
+    transform-origin: center;
+  }
+
+  .animate-freq-b {
+    animation: freqBarB 0.65s ease-in-out infinite;
+    transform-origin: center;
+  }
+
+  .animate-freq-c {
+    animation: freqBarC 0.95s ease-in-out infinite;
+    transform-origin: center;
+  }
+
+  .animate-freq-d {
+    animation: freqBarD 0.72s ease-in-out infinite;
+    transform-origin: center;
+  }
 }
 
 /* Custom scrollbars for dark ambient design */

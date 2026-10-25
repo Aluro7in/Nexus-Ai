@@ -24,6 +24,7 @@
         "ambientTheme": { "type": "string", "maxLength": 64 },
         "autoSpeak": { "type": "boolean" },
         "mcpBackendUrl": { "type": "string", "maxLength": 512 },
+        "hasCompletedOnboarding": { "type": "boolean" },
         "updatedAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["userId"]

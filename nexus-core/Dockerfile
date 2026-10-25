@@ -4,7 +4,7 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 # Copy package manifests and tsconfig
-COPY package*.json tsconfig.json ./
+COPY package.json package-lock.json tsconfig.json ./
 
 # Install dependencies including devDependencies for TypeScript compilation
 RUN npm ci
@@ -25,7 +25,7 @@ ENV PORT=8080
 ENV HOST=0.0.0.0
 
 # Copy package manifests and install only production dependencies
-COPY package*.json ./
+COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 # Copy compiled JavaScript output from builder

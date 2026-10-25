@@ -50,6 +50,9 @@ import type {
 import { AmbientHeader } from './components/AmbientHeader';
 import { Navigation } from './components/Navigation';
 import { ConfirmationModal } from './components/ConfirmationModal';
+import { OnboardingModal } from './components/OnboardingModal';
+import { AudioWaveformVisualizer } from './components/AudioWaveformVisualizer';
+import { Mic, Volume2, Square, X, Radio } from 'lucide-react';
 
 // Views
 import { HomeView } from './components/views/HomeView';
@@ -96,6 +99,46 @@ export default function App() {
     autoSpeak: true,
     mcpBackendUrl: 'https://nexus-core-v4j3.onrender.com',
   });
+
+  // 5b. Onboarding State
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('nexus_onboarding_completed') !== 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleCompleteOnboarding = () => {
+    setShowOnboarding(false);
+    try {
+      localStorage.setItem('nexus_onboarding_completed', 'true');
+    } catch {}
+    const updated: UserPreference = {
+      ...preferences,
+      hasCompletedOnboarding: true,
+    };
+    setPreferences(updated);
+    if (user) {
+      saveUserPreferences(updated).catch(console.warn);
+    }
+    audioEngine.speak(
+      'Welcome to Nexus AI. Your ambient operating system is initialized and standing by.',
+      preferences.voiceName,
+      true
+    );
+  };
+
+  const handleCloseOnboarding = () => {
+    setShowOnboarding(false);
+    try {
+      localStorage.setItem('nexus_onboarding_completed', 'true');
+    } catch {}
+  };
+
+  const handleOpenOnboarding = () => {
+    setShowOnboarding(true);
+  };
 
   // 6. Workspace Data
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -362,6 +405,9 @@ export default function App() {
           const userPrefs = await getUserPreferences(firebaseUser.uid);
           if (userPrefs) {
             setPreferences((prev) => ({ ...prev, ...userPrefs }));
+            if (userPrefs.hasCompletedOnboarding) {
+              setShowOnboarding(false);
+            }
           } else {
             const initialPref: UserPreference = {
               userId: firebaseUser.uid,
@@ -711,6 +757,7 @@ export default function App() {
         onNavigate={setActiveView}
         isDark={isDark}
         onToggleTheme={toggleTheme}
+        onOpenOnboarding={handleOpenOnboarding}
       />
 
       {/* Main Body */}
@@ -721,6 +768,7 @@ export default function App() {
           onNavigate={setActiveView}
           unreadCount={messages.filter((m) => m.unread).length}
           pendingApprovalCount={workflows.filter((w) => w.status === 'pending_approval').length}
+          onOpenOnboarding={handleOpenOnboarding}
         />
 
         {/* Dynamic Main Viewport */}
@@ -747,6 +795,7 @@ export default function App() {
               onRequestTaskConfirmation={handleRequestTaskConfirmation}
               onNavigate={setActiveView}
               onSceneActivate={handleSceneActivate}
+              onOpenOnboarding={handleOpenOnboarding}
             />
           )}
 
@@ -914,10 +963,129 @@ export default function App() {
               hasGoogleToken={hasGoogleToken}
               theme={theme}
               onSetTheme={setTheme}
+              onOpenOnboarding={handleOpenOnboarding}
             />
           )}
         </main>
       </div>
+
+      {/* Voice Assistant Visual Audio Waveform & Frequency Bar Overlay (Active during 'listening' & 'speaking') */}
+      {(audioStatus === 'listening' || audioStatus === 'speaking') && (
+        <aside
+          role="region"
+          aria-label="Active voice assistant interaction"
+          className={`fixed bottom-5 right-5 left-5 sm:left-auto sm:w-[480px] z-50 overflow-hidden rounded-2xl border backdrop-blur-xl shadow-2xl transition-all duration-300 ${
+            audioStatus === 'listening'
+              ? 'border-cyan-500/40 bg-slate-950/90 shadow-cyan-950/50'
+              : 'border-purple-500/40 bg-slate-950/90 shadow-purple-950/50'
+          }`}
+        >
+          {/* Ambient Top Accent Glow Line */}
+          <div
+            className={`h-1 w-full ${
+              audioStatus === 'listening'
+                ? 'bg-gradient-to-r from-transparent via-cyan-400 to-transparent'
+                : 'bg-gradient-to-r from-transparent via-purple-400 to-transparent'
+            }`}
+          />
+
+          <div className="p-4 sm:p-5">
+            {/* Header info row */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-2.5">
+                <div
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg border ${
+                    audioStatus === 'listening'
+                      ? 'border-cyan-500/40 bg-cyan-500/20 text-cyan-300'
+                      : 'border-purple-500/40 bg-purple-500/20 text-purple-300'
+                  }`}
+                >
+                  {audioStatus === 'listening' ? (
+                    <Mic className="h-4 w-4 animate-bounce" />
+                  ) : (
+                    <Volume2 className="h-4 w-4 animate-pulse" />
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2 text-xs font-semibold tracking-wide text-white">
+                    <span>{audioStatus === 'listening' ? 'Voice Input Active' : 'Speech Output Active'}</span>
+                    <span className="text-slate-500">·</span>
+                    <span
+                      className={`text-[10px] font-mono uppercase tracking-wider ${
+                        audioStatus === 'listening' ? 'text-cyan-400' : 'text-purple-400'
+                      }`}
+                    >
+                      {audioStatus === 'listening' ? 'Natural Speech' : preferences.voiceName}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    {audioStatus === 'listening' ? 'Listening to voice stream' : 'Synthesizing response'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex items-center space-x-2">
+                {audioStatus === 'speaking' ? (
+                  <button
+                    onClick={handleInterrupt}
+                    className="flex items-center space-x-1.5 rounded-lg border border-purple-500/40 bg-purple-500/20 px-3 py-1.5 text-xs font-medium text-purple-200 hover:bg-purple-500/30 transition-colors"
+                  >
+                    <Square className="h-3 w-3 fill-current" />
+                    <span>Stop</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={toggleListening}
+                    className="flex items-center space-x-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/20 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-500/30 transition-colors"
+                  >
+                    <Square className="h-3 w-3 fill-current" />
+                    <span>Done</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Visual Audio Waveform & Frequency Bar Animation with SVG Overlay */}
+            <div className="relative h-16 w-full rounded-xl bg-slate-900/80 border border-slate-800/80 overflow-hidden flex items-center justify-center px-2">
+              <AudioWaveformVisualizer
+                status={audioStatus}
+                variant="banner"
+                barCount={32}
+              />
+            </div>
+
+            {/* Live Text Caption / Transcript Snippet */}
+            <div className="mt-3 text-xs text-slate-300 font-medium truncate">
+              {audioStatus === 'listening' ? (
+                transcript ? (
+                  <span className="italic text-cyan-200">"{transcript}"</span>
+                ) : (
+                  <span className="text-slate-400">Listening for your command...</span>
+                )
+              ) : assistantReply ? (
+                <span className="text-purple-200 truncate block">"{assistantReply}"</span>
+              ) : (
+                <span className="text-slate-400">Synthesizing speech response...</span>
+              )}
+            </div>
+          </div>
+        </aside>
+      )}
+
+      {/* User Onboarding & Interactive Capability Tour Modal */}
+      <OnboardingModal
+        isOpen={showOnboarding}
+        onClose={handleCloseOnboarding}
+        onComplete={handleCompleteOnboarding}
+        user={user}
+        hasGoogleToken={hasGoogleToken}
+        onLogin={handleLogin}
+        onSampleVoicePrompt={handleVoiceCommand}
+        audioStatus={audioStatus}
+        isListening={isListening}
+        onToggleListening={toggleListening}
+      />
 
       {/* Mandatory Human-in-the-Loop Confirmation Modal */}
       <ConfirmationModal

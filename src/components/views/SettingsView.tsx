@@ -15,6 +15,7 @@ import {
   Moon,
   Laptop,
   Activity,
+  HelpCircle,
 } from 'lucide-react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import type { UserPreference, VoiceName } from '../../types';
@@ -31,6 +32,7 @@ interface SettingsViewProps {
   hasGoogleToken: boolean;
   theme?: ThemeMode;
   onSetTheme?: (theme: ThemeMode) => void;
+  onOpenOnboarding?: () => void;
   mcpDetails?: {
     message?: string;
     missingComponents?: string[];
@@ -49,6 +51,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   hasGoogleToken,
   theme = 'dark',
   onSetTheme,
+  onOpenOnboarding,
   mcpDetails,
 }) => {
   const [backendUrl, setBackendUrl] = useState(
@@ -374,7 +377,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         )}
       </div>
 
-      {/* 5. Privacy & Ethical AI Safety */}
+      {/* 5. Onboarding & Guided Feature Walkthrough */}
+      {onOpenOnboarding && (
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800/80 bg-white dark:bg-slate-900/40 p-5 shadow-xs backdrop-blur-md space-y-3 transition-colors">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2 text-slate-900 dark:text-white font-bold text-sm">
+              <HelpCircle className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+              <span>Interactive Onboarding & Feature Walkthrough</span>
+            </div>
+            <button
+              type="button"
+              onClick={onOpenOnboarding}
+              className="flex items-center space-x-2 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-cyan-950/20 hover:opacity-95 transition-all"
+            >
+              <span>Replay Onboarding Guide</span>
+            </button>
+          </div>
+          <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            Review the 4-step walkthrough anytime: Core OS architecture, the voice interaction model & SVG waveforms, connecting Google services, and ambient glance widgets.
+          </p>
+        </div>
+      )}
+
+      {/* 6. Privacy & Ethical AI Safety */}
       <div className="rounded-2xl border border-slate-200 dark:border-slate-800/80 bg-white dark:bg-slate-900/40 p-5 shadow-xs backdrop-blur-md space-y-3 transition-colors">
         <div className="flex items-center space-x-2 text-slate-900 dark:text-white font-bold text-sm">
           <Shield className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />

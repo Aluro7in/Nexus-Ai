@@ -16,6 +16,7 @@ export interface UserPreference {
   autoSpeak: boolean;
   mcpBackendUrl: string;
   speechRate?: number;
+  hasCompletedOnboarding?: boolean;
   updatedAt?: string;
 }
 

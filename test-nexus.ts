@@ -243,6 +243,8 @@ async function runTestSuite() {
     const requiredFiles = [
       'src/components/AmbientHeader.tsx',
       'src/components/VoiceAssistantPanel.tsx',
+      'src/components/AudioWaveformVisualizer.tsx',
+      'src/components/OnboardingModal.tsx',
       'src/components/SmartDisplayHub.tsx',
       'src/components/ExecutionTimeline.tsx',
       'src/components/ConfirmationModal.tsx',
@@ -268,6 +270,18 @@ async function runTestSuite() {
       if (!fs.existsSync(f)) {
         throw new Error(`Missing expected source file: ${f}`);
       }
+    }
+  });
+
+  // 13b. Audio Waveform & Keyframe Animation Verification
+  await recordTest('Voice Assistant UI', 'AudioWaveformVisualizer and CSS keyframes are defined for listening and speaking states', async () => {
+    const css = fs.readFileSync('src/index.css', 'utf8');
+    if (!css.includes('@keyframes waveformDrift') || !css.includes('@keyframes freqBarA')) {
+      throw new Error('Missing audio waveform or frequency bar keyframes in src/index.css');
+    }
+    const appTsx = fs.readFileSync('src/App.tsx', 'utf8');
+    if (!appTsx.includes('AudioWaveformVisualizer') || !appTsx.includes("audioStatus === 'listening' || audioStatus === 'speaking'")) {
+      throw new Error('App.tsx does not integrate AudioWaveformVisualizer for listening/speaking states');
     }
   });
 
@@ -383,6 +397,45 @@ async function runTestSuite() {
     }
     if (envExample.includes('VITE_NEXUS_CORE_BEARER_TOKEN') || envExample.includes('VITE_GEMINI_API_KEY')) {
       throw new Error('Found privileged credentials prefixed with browser-public VITE_ in .env.example');
+    }
+  });
+
+  // 22. Docker Build & Reproducible Lockfile Integrity
+  await recordTest('Docker & Build Reproducibility', 'package-lock.json and Dockerfile manifests exist and enforce reproducible npm ci', async () => {
+    if (!fs.existsSync('package-lock.json')) {
+      throw new Error('package-lock.json is missing in project root');
+    }
+    const lockfile = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+    if (!lockfile.lockfileVersion || lockfile.lockfileVersion < 2) {
+      throw new Error(`Invalid or outdated lockfileVersion: ${lockfile.lockfileVersion}`);
+    }
+    if (!fs.existsSync('Dockerfile')) {
+      throw new Error('Root Dockerfile is missing');
+    }
+    const dockerfile = fs.readFileSync('Dockerfile', 'utf8');
+    if (!dockerfile.includes('package-lock.json')) {
+      throw new Error('Dockerfile does not copy package-lock.json before npm ci');
+    }
+    if (!dockerfile.includes('npm ci')) {
+      throw new Error('Dockerfile does not use npm ci for reproducible installs');
+    }
+    if (!fs.existsSync('nexus-core/package-lock.json')) {
+      throw new Error('nexus-core/package-lock.json is missing');
+    }
+  });
+
+  // 23. User Onboarding Flow Integrity Check
+  await recordTest('User Onboarding Flow', 'OnboardingModal guides core features, Google service connection, and voice model', async () => {
+    const modalCode = fs.readFileSync('src/components/OnboardingModal.tsx', 'utf8');
+    if (!modalCode.includes('Voice Interaction Model') || !modalCode.includes('Connect Your Google Workspace')) {
+      throw new Error('OnboardingModal is missing core feature or voice model explanation sections');
+    }
+    if (!modalCode.includes('AudioWaveformVisualizer')) {
+      throw new Error('OnboardingModal does not integrate the audio waveform tester');
+    }
+    const appCode = fs.readFileSync('src/App.tsx', 'utf8');
+    if (!appCode.includes('OnboardingModal') || !appCode.includes('showOnboarding')) {
+      throw new Error('App.tsx does not integrate OnboardingModal state');
     }
   });
 

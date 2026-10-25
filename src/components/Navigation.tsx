@@ -8,6 +8,7 @@ import {
   Brain,
   Layers,
   Settings,
+  HelpCircle,
 } from 'lucide-react';
 
 interface NavigationProps {
@@ -15,6 +16,7 @@ interface NavigationProps {
   onNavigate: (view: string) => void;
   unreadCount?: number;
   pendingApprovalCount?: number;
+  onOpenOnboarding?: () => void;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({
@@ -22,6 +24,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   onNavigate,
   unreadCount = 0,
   pendingApprovalCount = 0,
+  onOpenOnboarding,
 }) => {
   const navItems = [
     { id: 'home', label: 'Home', icon: Home },
@@ -66,6 +69,19 @@ export const Navigation: React.FC<NavigationProps> = ({
             </button>
           );
         })}
+
+        {/* Onboarding Walkthrough Trigger */}
+        {onOpenOnboarding && (
+          <div className="pt-2 md:pt-4 md:mt-auto md:border-t border-slate-200 dark:border-slate-800/80">
+            <button
+              onClick={onOpenOnboarding}
+              className="flex items-center space-x-3 w-full rounded-xl px-3 py-2 text-xs font-semibold text-cyan-700 dark:text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/15 border border-cyan-500/20 transition-all shrink-0"
+            >
+              <HelpCircle className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+              <span className="hidden md:inline">Onboarding Guide</span>
+            </button>
+          </div>
+        )}
       </div>
     </nav>
   );

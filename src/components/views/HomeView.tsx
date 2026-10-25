@@ -28,6 +28,7 @@ interface HomeViewProps {
   onRequestTaskConfirmation: (title: string, notes: string, onConfirm: () => Promise<void>) => void;
   onNavigate: (view: string) => void;
   onSceneActivate: (sceneName: string) => void;
+  onOpenOnboarding?: () => void;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
@@ -51,6 +52,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onRequestTaskConfirmation,
   onNavigate,
   onSceneActivate,
+  onOpenOnboarding,
 }) => {
   return (
     <div className="space-y-6">
@@ -71,6 +73,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         <div className="flex items-center space-x-2 text-xs">
+          {onOpenOnboarding && (
+            <button
+              onClick={onOpenOnboarding}
+              className="flex items-center space-x-1 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20 transition-colors font-medium"
+            >
+              <span>Feature Tour</span>
+            </button>
+          )}
           <span className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 px-2.5 py-1 text-slate-700 dark:text-slate-300 font-mono text-[11px]">
             Gemini 3.8 Flash: Active
           </span>

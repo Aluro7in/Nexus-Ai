@@ -10,6 +10,7 @@ import {
   Flame,
   CheckCircle2,
 } from 'lucide-react';
+import { AudioWaveformVisualizer } from './AudioWaveformVisualizer';
 
 interface VoiceAssistantPanelProps {
   audioStatus: 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
@@ -147,26 +148,9 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
           </div>
         </div>
 
-        {/* Live Audio Waveform Simulation */}
-        <div className="mt-3 flex items-center justify-center space-x-1 h-5">
-          {[40, 75, 20, 90, 60, 30, 85, 45, 95, 35, 70, 50, 80, 25].map((h, i) => (
-            <div
-              key={i}
-              className={`w-1 rounded-full transition-all duration-200 ${
-                audioStatus === 'listening'
-                  ? 'bg-cyan-500'
-                  : audioStatus === 'speaking'
-                  ? 'bg-purple-500'
-                  : 'bg-slate-300 dark:bg-slate-700/50'
-              }`}
-              style={{
-                height:
-                  audioStatus === 'listening' || audioStatus === 'speaking'
-                    ? `${Math.max(4, (h * Math.random() + 20) % 24)}px`
-                    : '4px',
-              }}
-            />
-          ))}
+        {/* Enhanced SVG Audio Waveform & Frequency Bar Visualizer */}
+        <div className="mt-4 w-full max-w-lg h-20 flex items-center justify-center px-4">
+          <AudioWaveformVisualizer status={audioStatus} variant="banner" barCount={28} />
         </div>
       </div>
 
