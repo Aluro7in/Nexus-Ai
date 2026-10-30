@@ -67,7 +67,7 @@ export class NexusCoreClient {
   private baseUrl: string;
   private defaultTimeoutMs: number;
 
-  constructor(baseUrl?: string, timeoutMs: number = 8000) {
+  constructor(baseUrl?: string, timeoutMs: number = 15000) {
     this.baseUrl = (baseUrl || process.env.NEXUS_CORE_BASE_URL || 'https://nexus-core-v4j3.onrender.com').replace(/\/+$/, '');
     this.defaultTimeoutMs = timeoutMs;
   }
@@ -98,8 +98,9 @@ export class NexusCoreClient {
 
   /**
    * Probes the live health endpoint of the Nexus Core backend.
+   * Includes 1 automatic retry to handle Render free-tier cold-start wakeups.
    */
-  async checkHealth(): Promise<{ isHealthy: boolean; data?: NexusCoreHealthResponse; error?: string }> {
+  async checkHealth(retries = 1): Promise<{ isHealthy: boolean; data?: NexusCoreHealthResponse; error?: string }> {
     try {
       const res = await this.fetchWithTimeout(`${this.baseUrl}/health`, {
         method: 'GET',
@@ -113,14 +114,18 @@ export class NexusCoreClient {
       const data = (await res.json()) as NexusCoreHealthResponse;
       return { isHealthy: data.status === 'UP', data };
     } catch (err: any) {
+      if (retries > 0) {
+        return this.checkHealth(retries - 1);
+      }
       return { isHealthy: false, error: err.name === 'AbortError' ? 'Connection timed out' : err.message };
     }
   }
 
   /**
    * Fetches the tool catalog and status from /api/nexus/status and /
+   * Includes 1 automatic retry to handle Render free-tier cold-start wakeups.
    */
-  async getStatus(): Promise<{ success: boolean; data?: NexusCoreStatusResponse; error?: string }> {
+  async getStatus(retries = 1): Promise<{ success: boolean; data?: NexusCoreStatusResponse; error?: string }> {
     try {
       const res = await this.fetchWithTimeout(`${this.baseUrl}/api/nexus/status`, {
         method: 'GET',
@@ -134,6 +139,9 @@ export class NexusCoreClient {
       const data = (await res.json()) as NexusCoreStatusResponse;
       return { success: true, data };
     } catch (err: any) {
+      if (retries > 0) {
+        return this.getStatus(retries - 1);
+      }
       return { success: false, error: err.name === 'AbortError' ? 'Connection timed out' : err.message };
     }
   }

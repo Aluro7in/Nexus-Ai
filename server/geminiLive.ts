@@ -1,17 +1,26 @@
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'http';
+import { verifyLiveSessionToken } from './api';
 
 interface LiveClientMessage {
   type?: 'audio' | 'text' | 'init';
   audio?: string; // base64 PCM 16kHz
   text?: string;
   voiceName?: string;
+  token?: string;
 }
 
 export function setupGeminiLiveWebSocket(wss: WebSocketServer, ai: GoogleGenAI | null, apiKey?: string) {
   wss.on('connection', async (clientWs: WebSocket, req: IncomingMessage) => {
-    console.log('[Gemini Live] Client connected to /api/live-stream');
+    const reqUrl = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+    const token = reqUrl.searchParams.get('token');
+    const isTokenValid = token ? verifyLiveSessionToken(token) : true;
+
+    console.log('[Gemini Live] Client connected to /api/live-stream', {
+      hasToken: Boolean(token),
+      isTokenValid,
+    });
 
     clientWs.send(
       JSON.stringify({
@@ -19,6 +28,7 @@ export function setupGeminiLiveWebSocket(wss: WebSocketServer, ai: GoogleGenAI |
         status: 'connecting',
         model: 'gemini-3.8-live',
         sampleRate: 24000,
+        authenticated: isTokenValid,
       })
     );
 

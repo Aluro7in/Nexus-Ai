@@ -10,13 +10,25 @@ export class AudioRecorder {
 
   public async start(): Promise<void> {
     this.audioChunks = [];
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        channelCount: 1,
-        echoCancellation: true,
-        noiseSuppression: true,
-      },
-    });
+
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error('Microphone recording is not supported in this browser.');
+    }
+
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      });
+    } catch (err: any) {
+      if (err?.name === 'NotAllowedError' || /permission/i.test(err?.message || '')) {
+        throw new Error('Microphone permission was denied. Please allow microphone access in your browser.');
+      }
+      throw err;
+    }
 
     // Check supported mime types
     const mimeTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];

@@ -1,4 +1,4 @@
-import { handleApiRoute } from './server/api';
+import { handleApiRoute, verifyLiveSessionToken } from './server/api';
 import fs from 'fs';
 import path from 'path';
 
@@ -185,6 +185,25 @@ async function runTestSuite() {
     if (resp.body.sampleRate !== 24000 || resp.body.inputSampleRate !== 16000) {
       throw new Error(`Audio sample rates mismatch: ${resp.body.sampleRate}/${resp.body.inputSampleRate}`);
     }
+  });
+
+  // 5e. Ephemeral Live API Token Verification
+  await recordTest('Live API Security', 'POST /api/gemini/session-token provisions cryptographic ephemeral token', async () => {
+    const ctx = createMockContext('/api/gemini/session-token', 'POST');
+    const handled = await handleApiRoute(ctx.req, ctx.res);
+    if (!handled) throw new Error('Route was not handled');
+    const resp = ctx.getResponse();
+    if (resp.status !== 200) throw new Error(`Status ${resp.status}`);
+    if (!resp.body.token || typeof resp.body.token !== 'string') {
+      throw new Error('Token string missing');
+    }
+    if (resp.body.model !== 'gemini-3.8-live') {
+      throw new Error(`Expected gemini-3.8-live, got ${resp.body.model}`);
+    }
+    const isValid = verifyLiveSessionToken(resp.body.token);
+    if (!isValid) throw new Error('verifyLiveSessionToken returned false for fresh token');
+    const isTamperedValid = verifyLiveSessionToken(resp.body.token + '-tampered');
+    if (isTamperedValid) throw new Error('verifyLiveSessionToken accepted a tampered token');
   });
 
   // 6. Nexus Core MCP Boundary

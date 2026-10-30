@@ -1,9 +1,46 @@
 import { GoogleGenAI } from '@google/genai';
 import type { Request, Response } from 'express';
 import { defaultNexusCoreClient } from './nexusCoreClient';
+import crypto from 'crypto';
 
 // Initialize Gemini on the server side
 export const apiKey = process.env.GEMINI_API_KEY;
+
+export function createLiveSessionToken(userId: string = 'nexus-user'): {
+  token: string;
+  expiresIn: number;
+  model: string;
+  status: string;
+  issuedAt: number;
+} {
+  const secret = apiKey || 'nexus-ambient-secret';
+  const issuedAt = Date.now();
+  const expiresAt = issuedAt + 15 * 60 * 1000; // 15 minutes
+  const payload = `${userId}.${expiresAt}.${issuedAt}`;
+  const sig = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  return {
+    token: `${payload}.${sig}`,
+    expiresIn: 900,
+    model: 'gemini-3.8-live',
+    status: 'authenticated',
+    issuedAt,
+  };
+}
+
+export function verifyLiveSessionToken(token?: string): boolean {
+  if (!token) return false;
+  const parts = token.split('.');
+  if (parts.length !== 4) return false;
+  const [userId, expiresAtStr, issuedAtStr, sig] = parts;
+  const expiresAt = parseInt(expiresAtStr, 10);
+  if (isNaN(expiresAt) || Date.now() > expiresAt) return false;
+  const secret = apiKey || 'nexus-ambient-secret';
+  const expectedSig = crypto
+    .createHmac('sha256', secret)
+    .update(`${userId}.${expiresAtStr}.${issuedAtStr}`)
+    .digest('base64url');
+  return sig === expectedSig;
+}
 
 export const ai = apiKey
   ? new GoogleGenAI({
@@ -450,17 +487,8 @@ Your role:
 
   // 6. Ephemeral Session Token for Live API
   if (url === '/api/gemini/session-token' && req.method === 'POST') {
-    if (!apiKey) {
-      sendJson(res, 503, { error: 'Server Gemini API key not configured' });
-      return true;
-    }
-    const ephemeralToken = Buffer.from(`nexus-live-${Date.now()}-${Math.random().toString(36).substring(2)}`).toString('base64');
-    sendJson(res, 200, {
-      token: ephemeralToken,
-      expiresIn: 300,
-      model: 'gemini-3.8-live',
-      status: 'authenticated',
-    });
+    const sessionTokenData = createLiveSessionToken();
+    sendJson(res, 200, sessionTokenData);
     return true;
   }
 

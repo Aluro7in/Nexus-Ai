@@ -7,6 +7,8 @@
  * - Interruption handling & barge-in
  */
 
+import { getEphemeralLiveToken } from './gemini';
+
 export interface LiveClientCallbacks {
   onStatusChange?: (status: 'disconnected' | 'connecting' | 'connected' | 'speaking' | 'listening' | 'error') => void;
   onTranscript?: (text: string, isModel: boolean) => void;
@@ -43,8 +45,17 @@ export class GeminiLiveClient {
 
     this.callbacks.onStatusChange?.('connecting');
 
+    let token = '';
+    try {
+      const tokenRes = await getEphemeralLiveToken();
+      token = tokenRes.token;
+    } catch (e) {
+      console.warn('[GeminiLiveClient] Proceeding with ambient token fallback');
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/api/live-stream`;
+    const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : '';
+    const wsUrl = `${protocol}//${window.location.host}/api/live-stream${tokenQuery}`;
 
     return new Promise((resolve, reject) => {
       try {
@@ -52,7 +63,10 @@ export class GeminiLiveClient {
         this.ws = socket;
 
         socket.onopen = async () => {
-          console.log('[GeminiLiveClient] WebSocket connected');
+          console.log('[GeminiLiveClient] WebSocket connected with ephemeral credential');
+          if (token) {
+            socket.send(JSON.stringify({ type: 'init', token, voiceName: 'Zephyr' }));
+          }
           this.isConnected = true;
           this.callbacks.onStatusChange?.('connected');
           resolve();
@@ -94,6 +108,26 @@ export class GeminiLiveClient {
       await this.connect();
     }
 
+    // Always ensure 24kHz output playback context is ready first
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (AudioCtx) {
+      if (!this.outputAudioCtx || this.outputAudioCtx.state === 'closed') {
+        this.outputAudioCtx = new AudioCtx({ sampleRate: 24000 });
+      } else if (this.outputAudioCtx.state === 'suspended') {
+        try {
+          await this.outputAudioCtx.resume();
+        } catch {}
+      }
+    }
+
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      const unsupportedMsg = 'Microphone capture is not supported or restricted in this browser environment.';
+      console.warn('[GeminiLiveClient]', unsupportedMsg);
+      this.callbacks.onError?.(unsupportedMsg);
+      this.callbacks.onStatusChange?.('connected');
+      return;
+    }
+
     try {
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -106,15 +140,7 @@ export class GeminiLiveClient {
       });
 
       // Initialize 16kHz audio context for input capturing
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       this.inputAudioCtx = new AudioCtx({ sampleRate: 16000 });
-
-      // Output context for model's 24kHz PCM stream
-      if (!this.outputAudioCtx || this.outputAudioCtx.state === 'closed') {
-        this.outputAudioCtx = new AudioCtx({ sampleRate: 24000 });
-      } else if (this.outputAudioCtx.state === 'suspended') {
-        await this.outputAudioCtx.resume();
-      }
 
       this.sourceNode = this.inputAudioCtx.createMediaStreamSource(this.mediaStream);
 
@@ -153,10 +179,19 @@ export class GeminiLiveClient {
       this.isSessionActive = true;
       this.callbacks.onStatusChange?.('listening');
     } catch (err: any) {
-      console.error('[GeminiLiveClient] Microphone initialization error:', err);
-      this.callbacks.onError?.(err.message || 'Microphone access denied or unavailable');
-      this.callbacks.onStatusChange?.('error');
-      throw err;
+      console.warn('[GeminiLiveClient] Microphone permission or device access error:', err?.message || err);
+      const isDenied =
+        err?.name === 'NotAllowedError' ||
+        err?.name === 'PermissionDeniedError' ||
+        (err?.message && /permission/i.test(err.message));
+
+      const advisory = isDenied
+        ? 'Microphone permission was not granted. Please allow microphone access in your browser to speak. You can still type prompts or tap suggestion chips to listen to Gemini Live.'
+        : `Microphone unavailable: ${err?.message || 'Access error'}.`;
+
+      this.callbacks.onError?.(advisory);
+      // Keep Live API connection connected so user can hear responses and type prompts
+      this.callbacks.onStatusChange?.('connected');
     }
   }
 

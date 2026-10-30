@@ -742,6 +742,66 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isListening]);
 
+  const handleTriggerWorkflow = (id: string) => {
+    setWorkflows((prev) =>
+      prev.map((w) => {
+        const matches = w.id === id || (id === 'wf-briefing' && (w.id === 'wf-morning' || w.id === 'wf-1'));
+        if (!matches) return w;
+        return {
+          ...w,
+          status: 'running',
+          currentStepIndex: 0,
+          steps: w.steps.map((s, i) => (i === 0 ? { ...s, status: 'running' } : { ...s, status: 'pending' })),
+        };
+      })
+    );
+    audioEngine.speak('Executing ambient routine. Steps are updating live on your Smart Display timeline.', preferences.voiceName, true);
+
+    let step = 0;
+    const interval = setInterval(() => {
+      step++;
+      setWorkflows((prev) =>
+        prev.map((w) => {
+          const matches = w.id === id || (id === 'wf-briefing' && (w.id === 'wf-morning' || w.id === 'wf-1'));
+          if (!matches) return w;
+          if (step >= w.steps.length) {
+            clearInterval(interval);
+            return {
+              ...w,
+              status: 'completed',
+              steps: w.steps.map((s) => ({ ...s, status: 'completed' })),
+            };
+          }
+          const nextStep = w.steps[step];
+          const isApproval = nextStep?.status === 'approval_required' || nextStep?.service === 'mcp_core';
+          if (isApproval) {
+            clearInterval(interval);
+            return {
+              ...w,
+              status: 'pending_approval',
+              currentStepIndex: step,
+              steps: w.steps.map((s, i) => {
+                if (i < step) return { ...s, status: 'completed' };
+                if (i === step) return { ...s, status: 'approval_required' };
+                return s;
+              }),
+            };
+          }
+          return {
+            ...w,
+            status: 'running',
+            currentStepIndex: step,
+            steps: w.steps.map((s, i) => {
+              if (i < step) return { ...s, status: 'completed' };
+              if (i === step) return { ...s, status: 'running' };
+              return s;
+            }),
+          };
+        })
+      );
+    }, 1200);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#07090e] text-slate-900 dark:text-slate-100 flex flex-col font-['Plus_Jakarta_Sans'] transition-colors duration-200">
       {/* Ambient Header */}
@@ -796,6 +856,7 @@ export default function App() {
               onNavigate={setActiveView}
               onSceneActivate={handleSceneActivate}
               onOpenOnboarding={handleOpenOnboarding}
+              onTriggerWorkflow={handleTriggerWorkflow}
             />
           )}
 
@@ -811,20 +872,7 @@ export default function App() {
           {activeView === 'workflows' && (
             <WorkflowsView
               workflows={workflows}
-              onTriggerWorkflow={(id) => {
-                setWorkflows((prev) =>
-                  prev.map((w) =>
-                    w.id === id
-                      ? {
-                          ...w,
-                          status: 'running',
-                          steps: w.steps.map((s, i) => (i === 0 ? { ...s, status: 'running' } : s)),
-                        }
-                      : w
-                  )
-                );
-                audioEngine.speak('Executing workflow plan.', preferences.voiceName, true);
-              }}
+              onTriggerWorkflow={handleTriggerWorkflow}
               onApproveStep={handleApproveStep}
               accessToken={accessToken}
               onLogin={handleLogin}
