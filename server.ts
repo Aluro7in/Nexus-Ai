@@ -2,8 +2,8 @@ import express from 'express';
 import http from 'http';
 import { WebSocketServer } from 'ws';
 import { createServer as createViteServer } from 'vite';
-import { handleApiRoute, ai, apiKey } from './server/api';
-import { setupGeminiLiveWebSocket } from './server/geminiLive';
+import { handleApiRoute, ai, apiKey } from './server/api.ts';
+import { setupGeminiLiveWebSocket } from './server/geminiLive.ts';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
@@ -12,7 +12,7 @@ dotenv.config();
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
   // Middleware with expanded limit for audio payloads
   app.use(express.json({ limit: '20mb' }));

@@ -3,8 +3,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
+
+export type UndoableAction =
+  | {
+      type: 'task_creation';
+      task: TaskItem;
+      timestamp: number;
+    }
+  | {
+      type: 'workflow_step_execution';
+      workflowId: string;
+      stepId: string;
+      stepTitle: string;
+      previousStepStatus: WorkflowStep['status'];
+      previousWorkflowStatus: WorkflowExecution['status'];
+      previousCurrentStepIndex: number;
+      timestamp: number;
+    };
 import { testFirestoreConnection } from './lib/firebase';
 import { initAuth, googleSignIn, logout } from './lib/auth';
 import {
@@ -340,6 +357,17 @@ export default function App() {
     },
   ]);
 
+  // 7b. Action History for 'Undo Last Action'
+  const [actionHistory, setActionHistory] = useState<UndoableAction[]>([]);
+  const actionHistoryRef = useRef<UndoableAction[]>([]);
+  actionHistoryRef.current = actionHistory;
+
+  const workflowsRef = useRef<WorkflowExecution[]>([]);
+  workflowsRef.current = workflows;
+
+  const tasksRef = useRef<TaskItem[]>([]);
+  tasksRef.current = tasks;
+
   // 8. Confirmation Modal State (MANDATORY for human-in-the-loop safety)
   const [modalState, setModalState] = useState<{
     isOpen: boolean;
@@ -469,7 +497,7 @@ export default function App() {
         setIsListening(status === 'listening');
       }
     );
-  }, [preferences.voiceName, preferences.autoSpeak, events, messages, tasks]);
+  }, [preferences.voiceName, preferences.autoSpeak, events, messages, tasks, workflows, actionHistory]);
 
   // Voice Command Orchestrator
   const handleVoiceCommand = async (command: string) => {
@@ -487,6 +515,161 @@ export default function App() {
     setConversationMessages((prev) => [...prev, userMsg]);
     if (user) {
       saveMessageToFirestore(userMsg, user.uid).catch(console.warn);
+    }
+
+    const lower = command.toLowerCase().trim();
+
+    // -------------------------------------------------------------
+    // 'Undo Last Action' Command Handler
+    // Reverts most recent task creation or workflow step execution
+    // -------------------------------------------------------------
+    const isUndoCommand =
+      lower === 'undo' ||
+      lower === 'undo last action' ||
+      lower === 'undo that' ||
+      lower === 'undo action' ||
+      lower === 'revert' ||
+      lower === 'revert last action' ||
+      lower === 'revert that' ||
+      lower.includes('undo last action') ||
+      lower.includes('undo that action') ||
+      lower.includes('undo previous action') ||
+      lower.includes('undo last task') ||
+      lower.includes('undo the last action') ||
+      lower.includes('revert the last action') ||
+      lower.includes('revert last action') ||
+      lower === 'undo last step' ||
+      lower === 'undo workflow step' ||
+      lower.startsWith('undo');
+
+    if (isUndoCommand) {
+      const historyStack = actionHistoryRef.current;
+      if (historyStack.length === 0) {
+        const reply = 'There is no recent task creation or workflow step execution to undo.';
+        setAssistantReply(reply);
+
+        const botMsg: ConversationMessage = {
+          id: `bot-${Date.now()}`,
+          conversationId: 'active-session',
+          role: 'assistant',
+          content: reply,
+          createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          toolCalls: [
+            {
+              name: 'action_undo',
+              args: { command },
+              result: { status: 'noop', reason: 'No undoable action in history' },
+              status: 'success',
+            },
+          ],
+        };
+
+        setConversationMessages((prev) => [...prev, botMsg]);
+        if (user) {
+          saveMessageToFirestore(botMsg, user.uid).catch(console.warn);
+        }
+
+        await audioEngine.speak(reply, preferences.voiceName, preferences.autoSpeak);
+        setAudioStatus('idle');
+        return;
+      }
+
+      // Pop the most recent action from history
+      const lastAction = historyStack[historyStack.length - 1];
+      setActionHistory((prev) => prev.slice(0, -1));
+
+      if (lastAction.type === 'task_creation') {
+        const { task } = lastAction;
+        setTasks((prev) => prev.filter((t) => t.id !== task.id));
+        if (user) {
+          deleteTaskFromFirestore(task.id).catch(console.warn);
+        }
+
+        const reply = `Undone: Reverted creation of task "${task.title}". The task has been removed from your list.`;
+        setAssistantReply(reply);
+
+        const botMsg: ConversationMessage = {
+          id: `bot-${Date.now()}`,
+          conversationId: 'active-session',
+          role: 'assistant',
+          content: reply,
+          createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          toolCalls: [
+            {
+              name: 'workspace_tasks_undo',
+              args: { taskId: task.id, title: task.title },
+              result: { status: 'reverted', taskId: task.id },
+              status: 'success',
+            },
+          ],
+        };
+
+        setConversationMessages((prev) => [...prev, botMsg]);
+        if (user) {
+          saveMessageToFirestore(botMsg, user.uid).catch(console.warn);
+        }
+
+        await audioEngine.speak(reply, preferences.voiceName, preferences.autoSpeak);
+        setAudioStatus('idle');
+        return;
+      }
+
+      if (lastAction.type === 'workflow_step_execution') {
+        const { workflowId, stepId, stepTitle, previousStepStatus, previousWorkflowStatus, previousCurrentStepIndex } =
+          lastAction;
+
+        setWorkflows((prev) =>
+          prev.map((wf) => {
+            if (wf.id !== workflowId) return wf;
+            return {
+              ...wf,
+              status: previousWorkflowStatus,
+              currentStepIndex: previousCurrentStepIndex,
+              steps: wf.steps.map((s) => {
+                if (s.id !== stepId) return s;
+                return {
+                  ...s,
+                  status: previousStepStatus,
+                };
+              }),
+            };
+          })
+        );
+
+        const statusLabel =
+          previousStepStatus === 'approval_required'
+            ? 'pending approval'
+            : previousStepStatus === 'pending'
+            ? 'pending'
+            : previousStepStatus;
+        const reply = `Undone: Reverted workflow step "${stepTitle}" back to ${statusLabel}.`;
+        setAssistantReply(reply);
+
+        const botMsg: ConversationMessage = {
+          id: `bot-${Date.now()}`,
+          conversationId: 'active-session',
+          role: 'assistant',
+          content: reply,
+          createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          toolCalls: [
+            {
+              name: 'workflow_step_undo',
+              args: { workflowId, stepId, stepTitle, targetStatus: previousStepStatus },
+              result: { status: 'reverted', restoredStepStatus: previousStepStatus },
+              status: 'success',
+            },
+          ],
+        };
+
+        setConversationMessages((prev) => [...prev, botMsg]);
+        if (user) {
+          saveMessageToFirestore(botMsg, user.uid).catch(console.warn);
+        }
+
+        await audioEngine.speak(reply, preferences.voiceName, preferences.autoSpeak);
+        setAudioStatus('idle');
+        return;
+      }
     }
 
     try {
@@ -509,7 +692,6 @@ export default function App() {
       setAssistantReply(reply);
 
       // Tool Invocation Detection
-      const lower = command.toLowerCase();
       const detectedToolCalls: ConversationMessage['toolCalls'] = [];
 
       if (lower.includes('schedule') || lower.includes('calendar') || lower.includes('meeting')) {
@@ -527,12 +709,84 @@ export default function App() {
           status: 'success',
         });
       } else if (lower.includes('task') || lower.includes('remind')) {
+        let taskTitle = command
+          .replace(/^(please\s+)?(create\s+a?\s*task|add\s+a?\s*task|new\s+task|remind\s+me\s+to|add\s+task)\s+/i, '')
+          .trim();
+        if (!taskTitle) taskTitle = command;
+        taskTitle = taskTitle.charAt(0).toUpperCase() + taskTitle.slice(1);
+
+        const newTask: TaskItem = {
+          id: `t-${Date.now()}`,
+          userId: user?.uid || 'user',
+          title: taskTitle,
+          description: `Created via ambient voice command: "${command}"`,
+          priority: 'high',
+          status: 'pending',
+          category: 'workspace',
+          dueDate: 'Today',
+          createdAt: 'Just now',
+        };
+        setTasks((prev) => [newTask, ...prev]);
+        if (user) {
+          saveTaskToFirestore(newTask).catch(console.warn);
+        }
+        setActionHistory((prev) => [
+          ...prev,
+          {
+            type: 'task_creation',
+            task: newTask,
+            timestamp: Date.now(),
+          },
+        ]);
+
         detectedToolCalls.push({
           name: 'workspace_tasks_manage',
-          args: { task: command },
-          result: { status: 'created' },
+          args: { task: taskTitle, action: 'create' },
+          result: { status: 'created', taskId: newTask.id, title: taskTitle },
           status: 'success',
         });
+      }
+
+      // Voice approval for pending workflow steps
+      if (lower.includes('approve') && (lower.includes('step') || lower.includes('workflow') || lower.includes('purchase'))) {
+        const wfPending = workflowsRef.current.find(
+          (w) => w.status === 'pending_approval' || w.steps.some((s) => s.status === 'approval_required')
+        );
+        if (wfPending) {
+          const stepPending = wfPending.steps.find((s) => s.status === 'approval_required');
+          if (stepPending) {
+            setActionHistory((prev) => [
+              ...prev,
+              {
+                type: 'workflow_step_execution',
+                workflowId: wfPending.id,
+                stepId: stepPending.id,
+                stepTitle: stepPending.title,
+                previousStepStatus: stepPending.status,
+                previousWorkflowStatus: wfPending.status,
+                previousCurrentStepIndex: wfPending.currentStepIndex,
+                timestamp: Date.now(),
+              },
+            ]);
+            setWorkflows((prev) =>
+              prev.map((w) =>
+                w.id === wfPending.id
+                  ? {
+                      ...w,
+                      status: 'completed',
+                      steps: w.steps.map((s) => (s.id === stepPending.id ? { ...s, status: 'completed' } : s)),
+                    }
+                  : w
+              )
+            );
+            detectedToolCalls.push({
+              name: 'workflow_step_approve',
+              args: { workflowId: wfPending.id, stepId: stepPending.id },
+              result: { status: 'executed', stepTitle: stepPending.title },
+              status: 'success',
+            });
+          }
+        }
       }
 
       const botMsg: ConversationMessage = {
@@ -608,6 +862,9 @@ export default function App() {
 
   // Human-in-the-Loop Safe Actions with Confirmation Modal
   const handleApproveStep = (stepId: string) => {
+    const targetWf = workflowsRef.current.find((w) => w.steps.some((s) => s.id === stepId));
+    const targetStep = targetWf?.steps.find((s) => s.id === stepId);
+
     setModalState({
       isOpen: true,
       title: 'Authorize External Action Execution',
@@ -617,6 +874,21 @@ export default function App() {
       isDestructive: false,
       itemDetails: { stepId, authorizationTime: new Date().toISOString() },
       onConfirm: () => {
+        if (targetWf && targetStep) {
+          setActionHistory((prev) => [
+            ...prev,
+            {
+              type: 'workflow_step_execution',
+              workflowId: targetWf.id,
+              stepId: targetStep.id,
+              stepTitle: targetStep.title,
+              previousStepStatus: targetStep.status,
+              previousWorkflowStatus: targetWf.status,
+              previousCurrentStepIndex: targetWf.currentStepIndex,
+              timestamp: Date.now(),
+            },
+          ]);
+        }
         setWorkflows((prev) =>
           prev.map((wf) => ({
             ...wf,
@@ -661,6 +933,14 @@ export default function App() {
         if (user) {
           saveTaskToFirestore(newTask).catch(console.warn);
         }
+        setActionHistory((prev) => [
+          ...prev,
+          {
+            type: 'task_creation',
+            task: newTask,
+            timestamp: Date.now(),
+          },
+        ]);
         setModalState((s) => ({ ...s, isOpen: false }));
         audioEngine.speak(`Task "${title}" created with your approval.`, preferences.voiceName, true);
       },
@@ -894,6 +1174,14 @@ export default function App() {
                 if (user) {
                   saveTaskToFirestore(item).catch(console.warn);
                 }
+                setActionHistory((prev) => [
+                  ...prev,
+                  {
+                    type: 'task_creation',
+                    task: item,
+                    timestamp: Date.now(),
+                  },
+                ]);
               }}
               onToggleTask={(id) =>
                 setTasks((prev) =>

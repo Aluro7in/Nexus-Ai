@@ -1,4 +1,4 @@
-import { handleApiRoute, verifyLiveSessionToken } from './server/api';
+import { handleApiRoute, verifyLiveSessionToken } from './server/api.ts';
 import fs from 'fs';
 import path from 'path';
 
@@ -365,7 +365,7 @@ async function runTestSuite() {
 
   // 15. Production Nexus Core Live Health Probe
   await recordTest('Production Nexus Core', 'GET /health on live backend returns HTTP 200 and status UP', async () => {
-    const { defaultNexusCoreClient } = await import('./server/nexusCoreClient');
+    const { defaultNexusCoreClient } = await import('./server/nexusCoreClient.ts');
     const health = await defaultNexusCoreClient.checkHealth();
     if (!health.isHealthy || !health.data) {
       throw new Error(`Production health check failed: ${health.error || 'Unknown'}`);
@@ -380,7 +380,7 @@ async function runTestSuite() {
 
   // 16. Production Nexus Core Tool Catalog & Protocol Discovery
   await recordTest('Production Nexus Core', 'GET /api/nexus/status exposes MCP Streamable HTTP tool catalog', async () => {
-    const { defaultNexusCoreClient } = await import('./server/nexusCoreClient');
+    const { defaultNexusCoreClient } = await import('./server/nexusCoreClient.ts');
     const statusRes = await defaultNexusCoreClient.getStatus();
     if (!statusRes.success || !statusRes.data) {
       throw new Error(`Status check failed: ${statusRes.error}`);
@@ -399,7 +399,7 @@ async function runTestSuite() {
 
   // 17. Production Nexus Core OAuth & Protected Resource Audit
   await recordTest('Production Nexus Core', 'Protected resource metadata and missing OAuth endpoints are accurately audited', async () => {
-    const { defaultNexusCoreClient } = await import('./server/nexusCoreClient');
+    const { defaultNexusCoreClient } = await import('./server/nexusCoreClient.ts');
     const audit = await defaultNexusCoreClient.auditOAuthEndpoints();
     if (!audit.isResourceMetadataAvailable) {
       throw new Error('Failed to fetch protected resource metadata');
@@ -418,7 +418,7 @@ async function runTestSuite() {
 
   // 18. Production MCP Credential Rejection (Missing Token)
   await recordTest('Production Nexus Core', 'POST /mcp without Bearer token is rejected with HTTP 401', async () => {
-    const { defaultNexusCoreClient } = await import('./server/nexusCoreClient');
+    const { defaultNexusCoreClient } = await import('./server/nexusCoreClient.ts');
     const init = await defaultNexusCoreClient.initializeSession();
     if (init.connected) {
       throw new Error('Expected unauthenticated request to be rejected');
@@ -430,7 +430,7 @@ async function runTestSuite() {
 
   // 19. Production MCP Credential Rejection (Invalid/Forged Token)
   await recordTest('Production Nexus Core', 'POST /mcp with invalid token is rejected with HTTP 401 Invalid or forged token', async () => {
-    const { defaultNexusCoreClient } = await import('./server/nexusCoreClient');
+    const { defaultNexusCoreClient } = await import('./server/nexusCoreClient.ts');
     const init = await defaultNexusCoreClient.initializeSession('invalid_test_token_12345');
     if (init.connected) {
       throw new Error('Expected forged token request to be rejected');
@@ -503,6 +503,69 @@ async function runTestSuite() {
     const appCode = fs.readFileSync('src/App.tsx', 'utf8');
     if (!appCode.includes('OnboardingModal') || !appCode.includes('showOnboarding')) {
       throw new Error('App.tsx does not integrate OnboardingModal state');
+    }
+  });
+
+  // 24. Undo Last Action Voice Command & Reversal Architecture
+  await recordTest('Voice Command Undo Action', 'handleVoiceCommand supports "Undo Last Action" reverting task creation and workflow steps', async () => {
+    const appCode = fs.readFileSync('src/App.tsx', 'utf8');
+    if (!appCode.includes('UndoableAction')) {
+      throw new Error('App.tsx does not define UndoableAction type');
+    }
+    if (!appCode.includes('isUndoCommand') || !appCode.includes('undo last action')) {
+      throw new Error('handleVoiceCommand does not contain isUndoCommand detection for "undo last action"');
+    }
+    if (!appCode.includes('lastAction.type === \'task_creation\'') || !appCode.includes('lastAction.type === \'workflow_step_execution\'')) {
+      throw new Error('handleVoiceCommand does not handle both task_creation and workflow_step_execution undo types');
+    }
+    if (!appCode.includes('workspace_tasks_undo') || !appCode.includes('workflow_step_undo')) {
+      throw new Error('handleVoiceCommand does not emit structured toolCalls for workspace_tasks_undo and workflow_step_undo');
+    }
+    const voicePanelCode = fs.readFileSync('src/components/VoiceAssistantPanel.tsx', 'utf8');
+    if (!voicePanelCode.includes('Undo last action')) {
+      throw new Error('VoiceAssistantPanel does not include "Undo last action" in quickPrompts');
+    }
+  });
+
+  // 25. Responsive Navigation & Home Screen UI Architecture
+  await recordTest('Navigation & Home UI', 'Navigation includes all 8 core sections and HomeView renders orb, mic controls, transcript, and contextual cards', async () => {
+    const navCode = fs.readFileSync('src/components/Navigation.tsx', 'utf8');
+    const requiredSections = [
+      'Home',
+      'Conversations',
+      'Workflows',
+      'Tasks',
+      'Commerce',
+      'Memory',
+      'Integrations',
+      'Settings',
+    ];
+    for (const section of requiredSections) {
+      if (!navCode.includes(`'${section}'`)) {
+        throw new Error(`Navigation.tsx is missing required section label: ${section}`);
+      }
+    }
+    if (!navCode.includes('aria-label') || !navCode.includes('aria-current')) {
+      throw new Error('Navigation.tsx lacks accessible ARIA attributes');
+    }
+
+    const homeViewCode = fs.readFileSync('src/components/views/HomeView.tsx', 'utf8');
+    if (!homeViewCode.includes('VoiceAssistantPanel')) {
+      throw new Error('HomeView.tsx does not integrate VoiceAssistantPanel');
+    }
+    if (!homeViewCode.includes('Contextual Intelligence & Workspace Cards') && !homeViewCode.includes('Contextual Cards')) {
+      throw new Error('HomeView.tsx does not include contextual cards section');
+    }
+
+    const voicePanelCode = fs.readFileSync('src/components/VoiceAssistantPanel.tsx', 'utf8');
+    if (!voicePanelCode.includes('Voice Orb') || !voicePanelCode.includes('effectiveVoiceState')) {
+      throw new Error('VoiceAssistantPanel is missing central animated voice orb');
+    }
+    if (!voicePanelCode.includes('Live Conversational Transcript')) {
+      throw new Error('VoiceAssistantPanel is missing conversational transcript area');
+    }
+    if (!voicePanelCode.includes('AudioWaveformVisualizer')) {
+      throw new Error('VoiceAssistantPanel is missing audio waveform and mic controls');
     }
   });
 

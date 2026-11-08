@@ -268,7 +268,8 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
   const quickPrompts = [
     { label: 'Review my agenda', query: 'What meetings and events do I have on Google Calendar today?' },
     { label: 'Summarize unread emails', query: 'Summarize my high priority unread Gmail messages.' },
-    { label: 'Check low inventory', query: 'Check smart pantry telemetry and order coffee pods.' },
+    { label: 'Add task', query: 'Create task Prepare quarterly product demo' },
+    { label: 'Undo last action', query: 'Undo last action' },
     { label: 'Trigger morning scene', query: 'Execute morning ambient briefing and activate lighting.' },
   ];
 

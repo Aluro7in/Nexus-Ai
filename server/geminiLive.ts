@@ -1,7 +1,7 @@
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'http';
-import { verifyLiveSessionToken } from './api';
+import { verifyLiveSessionToken } from './api.ts';
 
 interface LiveClientMessage {
   type?: 'audio' | 'text' | 'init';

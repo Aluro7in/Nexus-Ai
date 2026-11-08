@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import type { Request, Response } from 'express';
-import { defaultNexusCoreClient } from './nexusCoreClient';
+import { defaultNexusCoreClient } from './nexusCoreClient.ts';
 import crypto from 'crypto';
 
 // Initialize Gemini on the server side
