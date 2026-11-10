@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Brain, Plus, Trash2, Sparkles, Tag, ShieldCheck, Info } from 'lucide-react';
+import { Brain, Plus, Trash2, Sparkles, ShieldCheck, Info } from 'lucide-react';
 import type { MemoryItem } from '../../types';
 
 interface MemoryViewProps {
@@ -36,20 +36,20 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200 dark:border-slate-800 transition-colors">
         <div>
-          <h2 className="text-lg font-bold text-white flex items-center space-x-2">
-            <Brain className="h-5 w-5 text-cyan-400" />
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+            <Brain className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
             <span>Ambient Personalized Memory</span>
           </h2>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
             Explicitly reviewable personal preferences, routines, and ambient context that guide Nexus AI.
           </p>
         </div>
 
         <button
           onClick={() => setIsAdding(!isAdding)}
-          className="flex items-center space-x-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-md shadow-cyan-950/40 hover:opacity-95 transition-all"
+          className="flex items-center space-x-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-md shadow-cyan-950/20 hover:opacity-95 transition-all cursor-pointer"
         >
           <Plus className="h-4 w-4" />
           <span>Add Memory</span>
@@ -57,10 +57,10 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
       </div>
 
       {/* Info notice on ethical AI & privacy */}
-      <div className="flex items-start space-x-3 rounded-2xl border border-cyan-500/20 bg-cyan-950/20 p-4 text-xs text-cyan-200">
-        <Info className="h-4 w-4 text-cyan-400 shrink-0 mt-0.5" />
-        <div>
-          <span className="font-semibold text-white">Transparent Ambient Memory:</span> All context items
+      <div className="flex items-start space-x-3 rounded-2xl border border-cyan-500/30 bg-cyan-50/60 dark:bg-cyan-950/20 p-4 text-xs text-cyan-900 dark:text-cyan-200 backdrop-blur-md">
+        <Info className="h-4 w-4 text-cyan-600 dark:text-cyan-400 shrink-0 mt-0.5" />
+        <div className="leading-relaxed">
+          <span className="font-semibold text-slate-900 dark:text-white">Transparent Ambient Memory:</span> All context items
           are 100% transparent and editable by you. Nexus AI uses this context to personalize calendar
           scheduling, lighting preferences, and proactive briefings without storing private secrets.
         </div>
@@ -70,22 +70,22 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
       {isAdding && (
         <form
           onSubmit={handleCreate}
-          className="rounded-2xl border border-cyan-500/30 bg-slate-900/80 p-5 shadow-lg backdrop-blur-md space-y-4"
+          className="rounded-2xl border border-cyan-500/30 bg-white dark:bg-slate-900/80 p-5 shadow-lg backdrop-blur-md space-y-4 transition-colors"
         >
-          <div className="font-semibold text-sm text-cyan-300">Teach Nexus New Context</div>
+          <div className="font-semibold text-sm text-cyan-700 dark:text-cyan-300">Teach Nexus New Context</div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input
               type="text"
               placeholder="Memory Key (e.g. 'Coffee Preference', 'Commute Route')"
               value={newKey}
               onChange={(e) => setNewKey(e.target.value)}
-              className="rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2 text-xs text-slate-200 focus:border-cyan-500 focus:outline-none"
+              className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3.5 py-2 text-xs text-slate-900 dark:text-slate-200 focus:border-cyan-500 focus:outline-none"
               required
             />
             <select
               value={newCategory}
               onChange={(e) => setNewCategory(e.target.value as any)}
-              className="rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-200"
+              className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:border-cyan-500 focus:outline-none"
             >
               <option value="preference">Preference</option>
               <option value="schedule">Schedule & Routine</option>
@@ -100,20 +100,20 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
             value={newValue}
             onChange={(e) => setNewValue(e.target.value)}
             rows={2}
-            className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2 text-xs text-slate-200 focus:border-cyan-500 focus:outline-none"
+            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3.5 py-2 text-xs text-slate-900 dark:text-slate-200 focus:border-cyan-500 focus:outline-none"
             required
           />
           <div className="flex items-center justify-end space-x-2">
             <button
               type="button"
               onClick={() => setIsAdding(false)}
-              className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-400 hover:text-white"
+              className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="rounded-xl bg-cyan-500 px-4 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400"
+              className="rounded-xl bg-cyan-600 text-white dark:bg-cyan-500 dark:text-slate-950 font-semibold px-4 py-1.5 text-xs hover:opacity-90 transition-opacity cursor-pointer"
             >
               Save Context
             </button>
@@ -126,26 +126,26 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
         {memories.map((m) => (
           <div
             key={m.id}
-            className="flex flex-col justify-between rounded-2xl border border-slate-800/80 bg-slate-900/40 p-4 backdrop-blur-md hover:border-cyan-500/30 transition-all"
+            className="flex flex-col justify-between rounded-2xl border border-slate-200 dark:border-slate-800/80 bg-white dark:bg-slate-900/50 p-4 shadow-sm backdrop-blur-md hover:border-cyan-500/40 transition-all"
           >
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="rounded-md bg-slate-800 px-2 py-0.5 text-[10px] font-mono font-semibold uppercase text-cyan-400">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
                   {m.category}
                 </span>
-                <span className="text-[10px] text-slate-500">
+                <span className="text-[10px] font-mono tabular-nums text-slate-500 dark:text-slate-400">
                   {Math.round(m.confidence * 100)}% match
                 </span>
               </div>
-              <h4 className="text-xs font-bold text-white">{m.key}</h4>
-              <p className="text-xs text-slate-300 mt-1 leading-relaxed">{m.value}</p>
+              <h4 className="text-xs font-bold text-slate-900 dark:text-white">{m.key}</h4>
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">{m.value}</p>
             </div>
 
-            <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500">
-              <span>Saved {m.createdAt}</span>
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <span className="tabular-nums">Saved {m.createdAt}</span>
               <button
                 onClick={() => onDeleteMemory(m.id)}
-                className="text-slate-500 hover:text-red-400 transition-colors p-1"
+                className="text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors p-1 cursor-pointer"
                 title="Forget this memory"
               >
                 <Trash2 className="h-3.5 w-3.5" />

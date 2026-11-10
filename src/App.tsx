@@ -54,7 +54,7 @@ import {
 import { askGemini } from './lib/gemini';
 import { audioEngine } from './lib/audio';
 import { mcpClient } from './lib/mcpClient';
-import { useTheme } from './lib/theme';
+import { useTheme, type ThemeMode } from './lib/theme';
 import type {
   ConversationMessage,
   TaskItem,
@@ -559,6 +559,9 @@ export default function App() {
 
           if (userPrefs) {
             setPreferences((prev) => ({ ...prev, ...userPrefs }));
+            if (userPrefs.ambientTheme && (userPrefs.ambientTheme === 'dark' || userPrefs.ambientTheme === 'light' || userPrefs.ambientTheme === 'system')) {
+              setTheme(userPrefs.ambientTheme as ThemeMode);
+            }
             if (userPrefs.hasCompletedOnboarding) {
               setShowOnboarding(false);
             }
@@ -1174,6 +1177,20 @@ export default function App() {
     }
   };
 
+  const handleThemeChange = (newTheme: ThemeMode) => {
+    setTheme(newTheme);
+    const updated = { ...preferences, ambientTheme: newTheme };
+    setPreferences(updated);
+    if (user) {
+      saveUserPreferences(updated).catch(console.warn);
+    }
+  };
+
+  const handleHeaderToggleTheme = () => {
+    const nextTheme: ThemeMode = isDark ? 'light' : 'dark';
+    handleThemeChange(nextTheme);
+  };
+
   const handleSceneActivate = (sceneName: string) => {
     audioEngine.speak(`Activating smart home scene: ${sceneName}`, preferences.voiceName, true);
     setAssistantReply(`Smart Home Scene "${sceneName}" activated via Matter bridge.`);
@@ -1270,7 +1287,7 @@ export default function App() {
         activeView={activeView}
         onNavigate={setActiveView}
         isDark={isDark}
-        onToggleTheme={toggleTheme}
+        onToggleTheme={handleHeaderToggleTheme}
         onOpenOnboarding={handleOpenOnboarding}
       />
 
@@ -1475,7 +1492,7 @@ export default function App() {
               }}
               hasGoogleToken={hasGoogleToken}
               theme={theme}
-              onSetTheme={setTheme}
+              onSetTheme={handleThemeChange}
               onOpenOnboarding={handleOpenOnboarding}
             />
           )}

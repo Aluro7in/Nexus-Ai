@@ -20,7 +20,7 @@ export interface UserPreference {
   voiceAccent?: VoiceAccent;
   voiceSpeed?: number; // 0.75 to 1.5, default 1.0
   voicePitch?: number; // 0.8 to 1.2, default 1.0
-  ambientTheme: 'cyber-dark' | 'nebula-indigo' | 'slate-minimal' | 'emerald-glow';
+  ambientTheme: 'dark' | 'light' | 'system' | 'cyber-dark' | 'nebula-indigo' | 'slate-minimal' | 'emerald-glow';
   autoSpeak: boolean;
   mcpBackendUrl: string;
   speechRate?: number;

@@ -87,7 +87,8 @@ export const AmbientHeader: React.FC<AmbientHeaderProps> = ({
                   AI
                 </span>
               </span>
-              <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-cyan-700 dark:text-cyan-300 uppercase">
+              <span className="text-slate-400 dark:text-slate-600">·</span>
+              <span className="text-[11px] font-semibold tracking-wider text-cyan-600 dark:text-cyan-400 font-mono uppercase">
                 Alexa+ OS
               </span>
             </div>
@@ -103,7 +104,7 @@ export const AmbientHeader: React.FC<AmbientHeaderProps> = ({
                     : 'Demo Adapter'}
                 </span>
               </span>
-              <span>•</span>
+              <span>·</span>
               <span className="text-slate-500 dark:text-slate-400">Ambient OS</span>
             </div>
           </div>
@@ -111,8 +112,8 @@ export const AmbientHeader: React.FC<AmbientHeaderProps> = ({
 
         {/* Ambient Clock & Status indicators */}
         <div className="hidden md:flex items-center space-x-6 text-center">
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800/80 bg-slate-50/80 dark:bg-slate-900/50 px-4 py-1.5 shadow-xs">
-            <div className="text-xs font-semibold text-slate-800 dark:text-slate-200 tracking-wider font-mono">
+          <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-slate-50/80 dark:bg-slate-900/60 px-4 py-1.5 shadow-xs">
+            <div className="text-xs font-semibold text-slate-800 dark:text-slate-200 tracking-wider font-mono tabular-nums">
               {currentTime || '--:--:--'}
             </div>
             <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">

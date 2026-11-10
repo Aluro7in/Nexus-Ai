@@ -2,6 +2,58 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ========================================================= */
+/* GLOBAL AMBIENT THEME & ACCESSIBILITY FOUNDATION           */
+/* ========================================================= */
+:root {
+  color-scheme: light dark;
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Base Body Ambient Glows */
+body {
+  font-family: var(--font-sans);
+  background-color: #f8fafc;
+  color: #0f172a;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+html.dark body {
+  background-color: #07090e;
+  color: #f1f5f9;
+  background-image: 
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(6, 182, 212, 0.08), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 90% 20%, rgba(99, 102, 241, 0.05), transparent 50%),
+    radial-gradient(ellipse 50% 30% at 10% 70%, rgba(168, 85, 247, 0.04), transparent 50%);
+  background-attachment: fixed;
+}
+
+html.light body {
+  background-color: #f8fafc;
+  color: #0f172a;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(6, 182, 212, 0.04), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 90% 20%, rgba(99, 102, 241, 0.03), transparent 50%);
+  background-attachment: fixed;
+}
+
+/* Accessible visible focus states */
+*:focus-visible {
+  outline: 2px solid #06b6d4 !important;
+  outline-offset: 2px !important;
+}
+
+/* ========================================================= */
+/* ANIMATIONS & KEYFRAMES                                    */
+/* ========================================================= */
 @layer utilities {
   @keyframes spinSlow {
     from {
@@ -88,6 +140,15 @@
     }
   }
 
+  @keyframes ambientOrbGlow {
+    0%, 100% {
+      filter: drop-shadow(0 0 35px rgba(6, 182, 212, 0.35));
+    }
+    50% {
+      filter: drop-shadow(0 0 55px rgba(99, 102, 241, 0.45));
+    }
+  }
+
   .animate-waveform-1 {
     animation: waveformDrift1 4s ease-in-out infinite;
   }
@@ -119,23 +180,52 @@
     animation: freqBarD 0.72s ease-in-out infinite;
     transform-origin: center;
   }
+
+  .animate-orb-glow {
+    animation: ambientOrbGlow 6s ease-in-out infinite;
+  }
 }
 
-/* Custom scrollbars for dark ambient design */
+/* ========================================================= */
+/* ADAPTIVE SCROLLBARS FOR SOPHISTICATED AMBIENT THEME       */
+/* ========================================================= */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 }
 
-::-webkit-scrollbar-track {
+html.dark ::-webkit-scrollbar-track {
   background: #07090e;
 }
 
-::-webkit-scrollbar-thumb {
+html.dark ::-webkit-scrollbar-thumb {
   background: #1e293b;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #06b6d4;
+}
+
+html.light ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
   border-radius: 9999px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #06b6d4;
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #0891b2;
+}
+
+/* Hide scrollbar for clean horizontal tab rows */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

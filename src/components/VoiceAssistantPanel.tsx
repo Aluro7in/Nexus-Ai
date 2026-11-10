@@ -562,16 +562,17 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
       {/* ========================================================= */}
       {/* CONVERSATIONAL TRANSCRIPT & REAL-TIME LOG                 */}
       {/* ========================================================= */}
-      <div className="mt-4 rounded-2xl border border-slate-800/80 bg-slate-950/60 p-4 sm:p-5 backdrop-blur-md">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-800 text-xs font-semibold text-slate-400">
+      <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800/80 bg-white dark:bg-slate-950/60 p-4 sm:p-5 shadow-sm backdrop-blur-md transition-colors">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 text-xs font-semibold text-slate-500 dark:text-slate-400">
           <div className="flex items-center space-x-2">
-            <Activity className="h-4 w-4 text-cyan-400" />
-            <span className="text-white font-bold tracking-wide">Live Conversational Transcript</span>
-            <span className="rounded-md bg-purple-500/20 px-2 py-0.5 text-[10px] font-mono text-purple-300 border border-purple-500/30">
+            <Activity className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+            <span className="text-slate-900 dark:text-white font-bold tracking-wide">Live Conversational Transcript</span>
+            <span className="text-slate-400 dark:text-slate-600">·</span>
+            <span className="text-[10px] font-mono font-semibold text-purple-600 dark:text-purple-400 uppercase">
               {activeMode === 'live' ? 'gemini-3.8-live' : 'gemini-3.8-flash'}
             </span>
           </div>
-          <span className="text-[11px] font-mono text-slate-400">Bidirectional Duplex</span>
+          <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">Bidirectional Duplex</span>
         </div>
 
         {/* Scrolling Transcript Area */}
@@ -587,34 +588,34 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
                 <span
                   className={`rounded-lg px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider shrink-0 ${
                     msg.role === 'model'
-                      ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                      : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                      ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30'
+                      : 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30'
                   }`}
                 >
                   {msg.role === 'model' ? 'Nexus' : 'You'}
                 </span>
                 <div className="flex-1">
-                  <p className="text-slate-100 font-medium leading-relaxed">{msg.text}</p>
+                  <p className="text-slate-800 dark:text-slate-100 font-medium leading-relaxed">{msg.text}</p>
                 </div>
-                <span className="text-[10px] text-slate-500 font-mono shrink-0">{msg.time}</span>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tabular-nums shrink-0">{msg.time}</span>
               </div>
             ))
           ) : (
             <>
               {transcript && (
                 <div className="flex items-start space-x-3">
-                  <span className="rounded-lg bg-cyan-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-cyan-300 border border-cyan-500/30 uppercase shrink-0">
+                  <span className="rounded-lg bg-cyan-500/15 px-2 py-0.5 font-mono text-[10px] font-bold text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 uppercase shrink-0">
                     You
                   </span>
-                  <p className="text-slate-100 font-medium leading-relaxed italic">"{transcript}"</p>
+                  <p className="text-slate-800 dark:text-slate-100 font-medium leading-relaxed italic">"{transcript}"</p>
                 </div>
               )}
               <div className="flex items-start space-x-3">
-                <span className="rounded-lg bg-purple-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-purple-300 border border-purple-500/30 uppercase shrink-0 flex items-center space-x-1">
+                <span className="rounded-lg bg-purple-500/15 px-2 py-0.5 font-mono text-[10px] font-bold text-purple-700 dark:text-purple-300 border border-purple-500/30 uppercase shrink-0 flex items-center space-x-1">
                   <Sparkles className="h-3 w-3" />
                   <span>Nexus</span>
                 </span>
-                <p className="text-slate-200 font-medium leading-relaxed">
+                <p className="text-slate-700 dark:text-slate-200 font-medium leading-relaxed">
                   {assistantReply ||
                     'Ambient assistant active. Ask me about your Google Calendar events, Gmail summary, Google Tasks, or trigger multi-step ambient routines.'}
                 </p>
@@ -624,14 +625,14 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
         </div>
 
         {/* Text Input / Fallback Command Box */}
-        <form onSubmit={handleSubmit} className="mt-4 flex items-center space-x-2 pt-3 border-t border-slate-800">
+        <form onSubmit={handleSubmit} className="mt-4 flex items-center space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
           <div className="relative flex-1">
             <input
               type="text"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               placeholder="Speak or type a voice request (e.g., 'What is on my calendar today?')..."
-              className="w-full rounded-xl border border-slate-800 bg-slate-900/90 px-4 py-2.5 text-xs sm:text-sm text-white placeholder-slate-400 transition-all focus:border-cyan-500/60 focus:outline-none focus:ring-1 focus:ring-cyan-500/60"
+              className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 px-4 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 transition-all focus:border-cyan-500/60 focus:outline-none focus:ring-1 focus:ring-cyan-500/60"
             />
           </div>
           <button
@@ -646,7 +647,7 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
 
         {/* Suggested Ambient Voice Commands */}
         <div className="mt-3.5">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 font-mono">
             Suggested Ambient Voice Commands
           </div>
           <div className="flex flex-wrap gap-2">
@@ -660,7 +661,7 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
                     onQuickPrompt(p.query);
                   }
                 }}
-                className="rounded-lg border border-slate-800 bg-slate-900/60 px-2.5 py-1 text-xs text-slate-300 hover:border-cyan-500/40 hover:bg-cyan-950/30 hover:text-cyan-200 transition-all shadow-xs cursor-pointer"
+                className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 px-2.5 py-1 text-xs text-slate-700 dark:text-slate-300 hover:border-cyan-500/40 hover:bg-cyan-50 dark:hover:bg-cyan-950/30 hover:text-cyan-700 dark:hover:text-cyan-200 transition-all shadow-xs cursor-pointer"
               >
                 {p.label}
               </button>

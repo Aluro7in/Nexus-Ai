@@ -113,7 +113,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <h1 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-wide">
                 Nexus AI Ambient Operating System
               </h1>
-              <span className="rounded-md bg-purple-500/15 px-2 py-0.5 text-[10px] font-mono font-semibold text-purple-700 dark:text-purple-300 border border-purple-500/30">
+              <span className="text-slate-400 dark:text-slate-600">·</span>
+              <span className="text-[11px] font-mono font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">
                 Alexa+ Track
               </span>
             </div>

@@ -656,6 +656,42 @@ async function runTestSuite() {
     }
   });
 
+  // 28. Sophisticated Dark Theme & Accessible UI/UX Design System
+  await recordTest('Dark Theme & UI/UX', 'Tailwind custom variant, toggle affordance, ambient mesh, and dual-theme accessibility', async () => {
+    // 1. Tailwind v4 @custom-variant dark
+    const indexCss = fs.readFileSync('src/index.css', 'utf8');
+    if (!indexCss.includes('@custom-variant dark (&:where(.dark, .dark *));')) {
+      throw new Error('src/index.css lacks mandatory Tailwind v4 @custom-variant dark');
+    }
+    if (!indexCss.includes('radial-gradient') || !indexCss.includes('::-webkit-scrollbar')) {
+      throw new Error('src/index.css lacks ambient background mesh glows or adaptive scrollbars');
+    }
+
+    // 2. Theme engine capabilities
+    const themeCode = fs.readFileSync('src/lib/theme.ts', 'utf8');
+    if (!themeCode.includes('useTheme') || !themeCode.includes('toggleTheme') || !themeCode.includes('applyTheme')) {
+      throw new Error('src/lib/theme.ts lacks useTheme, toggleTheme, or applyTheme');
+    }
+
+    // 3. Header quick toggle button
+    const headerCode = fs.readFileSync('src/components/AmbientHeader.tsx', 'utf8');
+    if (!headerCode.includes('onToggleTheme') || !headerCode.includes('isDark')) {
+      throw new Error('AmbientHeader lacks onToggleTheme or isDark toggle affordance');
+    }
+
+    // 4. Settings View theme customization & Firestore persistence
+    const settingsCode = fs.readFileSync('src/components/views/SettingsView.tsx', 'utf8');
+    if (!settingsCode.includes('themeOptions') || !settingsCode.includes('onSetTheme')) {
+      throw new Error('SettingsView lacks themeOptions or onSetTheme handler');
+    }
+
+    // 5. App.tsx bidirectional synchronization with Firestore
+    const appCode = fs.readFileSync('src/App.tsx', 'utf8');
+    if (!appCode.includes('handleThemeChange') || !appCode.includes('handleHeaderToggleTheme')) {
+      throw new Error('App.tsx lacks handleThemeChange or handleHeaderToggleTheme handlers');
+    }
+  });
+
   // Print Summary Table
   console.log('----------------------------------------------------');
   console.log('TEST RESULTS:');
