@@ -130,11 +130,19 @@ export class NexusAudioEngine {
     if (this.onStatusChangeCallback) this.onStatusChangeCallback('idle');
   }
 
-  async speak(text: string, voiceName: string = 'Zephyr', autoSpeak: boolean = true): Promise<void> {
+  async speak(
+    text: string,
+    voiceName: string = 'Zephyr',
+    autoSpeak: boolean = true,
+    options?: { speed?: number; pitch?: number; accent?: string }
+  ): Promise<void> {
     if (!autoSpeak || !text) return;
 
     this.interrupt();
     if (this.onStatusChangeCallback) this.onStatusChangeCallback('speaking');
+
+    const effectiveSpeed = options?.speed && options.speed >= 0.5 && options.speed <= 2.0 ? options.speed : 1.0;
+    const effectivePitch = options?.pitch && options.pitch >= 0.5 && options.pitch <= 1.5 ? options.pitch : 1.0;
 
     try {
       // 1. Try Gemini 3.8 Flash Lite TTS
@@ -143,6 +151,7 @@ export class NexusAudioEngine {
       if (res.audioBase64) {
         const audioUrl = `data:${res.mimeType || 'audio/wav'};base64,${res.audioBase64}`;
         const audio = new Audio(audioUrl);
+        audio.playbackRate = effectiveSpeed;
         this.currentAudio = audio;
 
         audio.onended = () => {
@@ -151,7 +160,7 @@ export class NexusAudioEngine {
         };
 
         audio.onerror = () => {
-          this.fallbackWebSpeech(text);
+          this.fallbackWebSpeech(text, effectiveSpeed, effectivePitch, options?.accent);
         };
 
         await audio.play();
@@ -162,18 +171,35 @@ export class NexusAudioEngine {
     }
 
     // 2. Fallback to Web Speech API
-    this.fallbackWebSpeech(text);
+    this.fallbackWebSpeech(text, effectiveSpeed, effectivePitch, options?.accent);
   }
 
-  private fallbackWebSpeech(text: string) {
+  private fallbackWebSpeech(text: string, speed: number = 1.0, pitch: number = 1.0, accent?: string) {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       if (this.onStatusChangeCallback) this.onStatusChangeCallback('idle');
       return;
     }
 
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.05;
-    utterance.pitch = 1.0;
+    utterance.rate = speed;
+    utterance.pitch = pitch;
+
+    if (accent && 'getVoices' in window.speechSynthesis) {
+      const voices = window.speechSynthesis.getVoices();
+      if (accent === 'british') {
+        const enGb = voices.find((v) => v.lang.includes('GB') || v.name.includes('UK') || v.name.includes('British'));
+        if (enGb) utterance.voice = enGb;
+      } else if (accent === 'australian') {
+        const enAu = voices.find((v) => v.lang.includes('AU') || v.name.includes('Australian'));
+        if (enAu) utterance.voice = enAu;
+      } else if (accent === 'indian') {
+        const enIn = voices.find((v) => v.lang.includes('IN') || v.name.includes('India'));
+        if (enIn) utterance.voice = enIn;
+      } else if (accent === 'neutral-american') {
+        const enUs = voices.find((v) => v.lang === 'en-US' || v.lang.includes('US'));
+        if (enUs) utterance.voice = enUs;
+      }
+    }
 
     utterance.onend = () => {
       if (this.onStatusChangeCallback) this.onStatusChangeCallback(this.isListening ? 'listening' : 'idle');

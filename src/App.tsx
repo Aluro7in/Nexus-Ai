@@ -26,6 +26,8 @@ import { testFirestoreConnection } from './lib/firebase';
 import { initAuth, googleSignIn, logout } from './lib/auth';
 import {
   syncUserProfile,
+  getUserProfile,
+  saveUserProfile,
   getUserPreferences,
   saveUserPreferences,
   fetchUserTasks,
@@ -61,6 +63,7 @@ import type {
   CommerceOrder,
   OrderItem,
   UserPreference,
+  UserProfile,
 } from './types';
 
 // Components
@@ -108,12 +111,21 @@ export default function App() {
     toolsCount?: number;
   }>({});
 
-  // 5. User Preferences
+  // 5. User Profile & Preferences
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [preferences, setPreferences] = useState<UserPreference>({
     userId: 'guest',
     voiceName: 'Zephyr',
+    voiceAccent: 'neutral-american',
+    voiceSpeed: 1.0,
+    voicePitch: 1.0,
     ambientTheme: 'cyber-dark',
     autoSpeak: true,
+    wakeWordEnabled: true,
+    noiseSuppression: true,
+    continuousListening: false,
+    soundEffects: true,
+    reminderNoticeMinutes: 10,
     mcpBackendUrl: 'https://nexus-core-v4j3.onrender.com',
   });
 
@@ -428,9 +440,29 @@ export default function App() {
         setMessages(mailData);
         setGoogleTasks(tasksData);
 
-        // Fetch User Preferences & Collections from Firestore
+        // Fetch User Profile, Preferences & Collections from Firestore
         try {
-          const userPrefs = await getUserPreferences(firebaseUser.uid);
+          const [dbProfile, userPrefs] = await Promise.all([
+            getUserProfile(firebaseUser.uid).catch(() => null),
+            getUserPreferences(firebaseUser.uid).catch(() => null),
+          ]);
+
+          if (dbProfile) {
+            setUserProfile(dbProfile);
+          } else {
+            const initialProfile: UserProfile = {
+              userId: firebaseUser.uid,
+              email: firebaseUser.email || '',
+              displayName: firebaseUser.displayName || 'Google User',
+              photoURL: firebaseUser.photoURL || '',
+              bio: 'Ambient AI workspace user',
+              location: 'San Francisco, CA',
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Los_Angeles',
+              createdAt: new Date().toISOString(),
+            };
+            setUserProfile(initialProfile);
+          }
+
           if (userPrefs) {
             setPreferences((prev) => ({ ...prev, ...userPrefs }));
             if (userPrefs.hasCompletedOnboarding) {
@@ -440,9 +472,17 @@ export default function App() {
             const initialPref: UserPreference = {
               userId: firebaseUser.uid,
               voiceName: 'Zephyr',
+              voiceAccent: 'neutral-american',
+              voiceSpeed: 1.0,
+              voicePitch: 1.0,
               ambientTheme: 'cyber-dark',
               autoSpeak: true,
-              mcpBackendUrl: 'http://localhost:8080/mcp',
+              wakeWordEnabled: true,
+              noiseSuppression: true,
+              continuousListening: false,
+              soundEffects: true,
+              reminderNoticeMinutes: 10,
+              mcpBackendUrl: 'https://nexus-core-v4j3.onrender.com',
             };
             setPreferences(initialPref);
             saveUserPreferences(initialPref).catch(console.warn);
@@ -804,7 +844,11 @@ export default function App() {
       }
 
       // Speak assistant response using Gemini 3.8 Flash Lite TTS
-      await audioEngine.speak(reply, preferences.voiceName, preferences.autoSpeak);
+      await audioEngine.speak(reply, preferences.voiceName, preferences.autoSpeak, {
+        speed: preferences.voiceSpeed,
+        pitch: preferences.voicePitch,
+        accent: preferences.voiceAccent,
+      });
     } catch (err: any) {
       console.error('Command processing error:', err);
       setAssistantReply('Sorry, I encountered an issue processing that request. Please try again.');
@@ -838,8 +882,30 @@ export default function App() {
   const handleLogout = async () => {
     await logout();
     setUser(null);
+    setUserProfile(null);
     setAccessToken(null);
     setHasGoogleToken(false);
+  };
+
+  const handleUpdateProfile = async (updates: Partial<UserProfile>) => {
+    const uid = user ? user.uid : 'guest';
+    const updatedProfile: UserProfile = {
+      userId: uid,
+      email: updates.email || userProfile?.email || user?.email || '',
+      displayName: updates.displayName || userProfile?.displayName || user?.displayName || 'User',
+      photoURL: updates.photoURL || userProfile?.photoURL || user?.photoURL || '',
+      bio: updates.bio !== undefined ? updates.bio : userProfile?.bio || '',
+      location: updates.location !== undefined ? updates.location : userProfile?.location || '',
+      timezone: updates.timezone !== undefined ? updates.timezone : userProfile?.timezone || '',
+      phoneNumber: updates.phoneNumber !== undefined ? updates.phoneNumber : userProfile?.phoneNumber || '',
+      createdAt: userProfile?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    setUserProfile(updatedProfile);
+    if (user) {
+      await saveUserProfile(updatedProfile).catch(console.warn);
+    }
   };
 
   const toggleListening = () => {
@@ -1267,6 +1333,8 @@ export default function App() {
           {activeView === 'settings' && (
             <SettingsView
               user={user}
+              userProfile={userProfile}
+              onUpdateProfile={handleUpdateProfile}
               preferences={preferences}
               onUpdatePreferences={(newPrefs) => {
                 const updated = { ...preferences, ...newPrefs };

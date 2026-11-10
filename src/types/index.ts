@@ -1,10 +1,15 @@
 export type VoiceName = 'Zephyr' | 'Puck' | 'Charon' | 'Kore' | 'Fenrir';
+export type VoiceAccent = 'neutral-american' | 'british' | 'australian' | 'indian';
 
 export interface UserProfile {
   userId: string;
   email: string;
   displayName: string;
   photoURL?: string;
+  bio?: string;
+  location?: string;
+  timezone?: string;
+  phoneNumber?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -12,10 +17,18 @@ export interface UserProfile {
 export interface UserPreference {
   userId: string;
   voiceName: VoiceName;
+  voiceAccent?: VoiceAccent;
+  voiceSpeed?: number; // 0.75 to 1.5, default 1.0
+  voicePitch?: number; // 0.8 to 1.2, default 1.0
   ambientTheme: 'cyber-dark' | 'nebula-indigo' | 'slate-minimal' | 'emerald-glow';
   autoSpeak: boolean;
   mcpBackendUrl: string;
   speechRate?: number;
+  wakeWordEnabled?: boolean;
+  noiseSuppression?: boolean;
+  continuousListening?: boolean;
+  soundEffects?: boolean;
+  reminderNoticeMinutes?: number;
   hasCompletedOnboarding?: boolean;
   updatedAt?: string;
 }

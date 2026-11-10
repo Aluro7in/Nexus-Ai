@@ -569,6 +569,41 @@ async function runTestSuite() {
     }
   });
 
+  // 26. User Profile & Preferences Persistence Architecture
+  await recordTest('User Profile & Preferences', 'UserProfile and UserPreference persist to Firebase with voice persona, accent, speed, and settings', async () => {
+    const blueprint = JSON.parse(fs.readFileSync('firebase-blueprint.json', 'utf8'));
+    if (!blueprint.entities?.User?.properties?.bio || !blueprint.entities?.User?.properties?.location) {
+      throw new Error('firebase-blueprint.json User entity is missing bio or location');
+    }
+    if (!blueprint.entities?.UserPreference?.properties?.voiceAccent || !blueprint.entities?.UserPreference?.properties?.voiceSpeed) {
+      throw new Error('firebase-blueprint.json UserPreference entity is missing voiceAccent or voiceSpeed');
+    }
+
+    const firestoreServiceCode = fs.readFileSync('src/lib/firestoreService.ts', 'utf8');
+    if (!firestoreServiceCode.includes('getUserProfile') || !firestoreServiceCode.includes('saveUserProfile')) {
+      throw new Error('firestoreService.ts does not export getUserProfile and saveUserProfile');
+    }
+    if (!firestoreServiceCode.includes('getUserPreferences') || !firestoreServiceCode.includes('saveUserPreferences')) {
+      throw new Error('firestoreService.ts does not export getUserPreferences and saveUserPreferences');
+    }
+
+    const settingsCode = fs.readFileSync('src/components/views/SettingsView.tsx', 'utf8');
+    if (!settingsCode.includes('displayName') || !settingsCode.includes('bio') || !settingsCode.includes('location')) {
+      throw new Error('SettingsView.tsx is missing basic user information fields (displayName, bio, location)');
+    }
+    if (!settingsCode.includes('voiceSpeed') || !settingsCode.includes('voicePitch') || !settingsCode.includes('voiceAccent')) {
+      throw new Error('SettingsView.tsx is missing voice preferences (speed, pitch, accent)');
+    }
+    if (!settingsCode.includes('handlePlayVoiceSample') || !settingsCode.includes('Preview Voice')) {
+      throw new Error('SettingsView.tsx is missing voice preview sample player');
+    }
+
+    const appCode = fs.readFileSync('src/App.tsx', 'utf8');
+    if (!appCode.includes('userProfile') || !appCode.includes('handleUpdateProfile')) {
+      throw new Error('App.tsx does not manage userProfile state and handleUpdateProfile');
+    }
+  });
+
   // Print Summary Table
   console.log('----------------------------------------------------');
   console.log('TEST RESULTS:');

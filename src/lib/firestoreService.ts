@@ -56,6 +56,39 @@ export async function syncUserProfile(user: {
   }
 }
 
+export async function getUserProfile(userId: string): Promise<UserProfile | null> {
+  const path = `users/${userId}`;
+  try {
+    const userRef = doc(db, 'users', userId);
+    const snap = await getDoc(userRef);
+    if (snap.exists()) {
+      return snap.data() as UserProfile;
+    }
+    return null;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, path);
+    return null;
+  }
+}
+
+export async function saveUserProfile(profile: Partial<UserProfile> & { userId: string }): Promise<void> {
+  const path = `users/${profile.userId}`;
+  try {
+    const userRef = doc(db, 'users', profile.userId);
+    const now = new Date().toISOString();
+    await setDoc(
+      userRef,
+      {
+        ...profile,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
 // 2. User Preferences
 export async function getUserPreferences(userId: string): Promise<UserPreference | null> {
   const path = `user_preferences/${userId}`;

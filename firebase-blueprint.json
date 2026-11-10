@@ -9,6 +9,10 @@
         "email": { "type": "string", "maxLength": 256 },
         "displayName": { "type": "string", "maxLength": 128 },
         "photoURL": { "type": "string", "maxLength": 512 },
+        "bio": { "type": "string", "maxLength": 500 },
+        "location": { "type": "string", "maxLength": 128 },
+        "timezone": { "type": "string", "maxLength": 64 },
+        "phoneNumber": { "type": "string", "maxLength": 32 },
         "createdAt": { "type": "string", "maxLength": 64 },
         "updatedAt": { "type": "string", "maxLength": 64 }
       },
@@ -21,8 +25,17 @@
       "properties": {
         "userId": { "type": "string", "maxLength": 128 },
         "voiceName": { "type": "string", "maxLength": 64 },
+        "voiceAccent": { "type": "string", "maxLength": 64 },
+        "voiceSpeed": { "type": "number" },
+        "voicePitch": { "type": "number" },
         "ambientTheme": { "type": "string", "maxLength": 64 },
         "autoSpeak": { "type": "boolean" },
+        "speechRate": { "type": "number" },
+        "wakeWordEnabled": { "type": "boolean" },
+        "noiseSuppression": { "type": "boolean" },
+        "continuousListening": { "type": "boolean" },
+        "soundEffects": { "type": "boolean" },
+        "reminderNoticeMinutes": { "type": "number" },
         "mcpBackendUrl": { "type": "string", "maxLength": 512 },
         "hasCompletedOnboarding": { "type": "boolean" },
         "updatedAt": { "type": "string", "maxLength": 64 }
