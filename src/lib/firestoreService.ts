@@ -183,6 +183,28 @@ export async function saveMessageToFirestore(msg: ConversationMessage, userId: s
   }
 }
 
+export async function deleteMessageFromFirestore(messageId: string): Promise<void> {
+  const path = `messages/${messageId}`;
+  try {
+    const docRef = doc(db, 'messages', messageId);
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export async function clearUserMessages(userId: string): Promise<void> {
+  const path = 'messages';
+  try {
+    const q = query(collection(db, 'messages'), where('userId', '==', userId));
+    const snap = await getDocs(q);
+    const deletePromises = snap.docs.map((docSnap) => deleteDoc(docSnap.ref));
+    await Promise.all(deletePromises);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
 // 5. Memories
 export async function fetchUserMemories(userId: string): Promise<MemoryItem[]> {
   const path = 'memories';

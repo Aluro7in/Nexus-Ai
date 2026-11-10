@@ -35,6 +35,8 @@ import {
   deleteTaskFromFirestore,
   fetchUserMessages,
   saveMessageToFirestore,
+  deleteMessageFromFirestore,
+  clearUserMessages,
   fetchUserMemories,
   saveMemoryToFirestore,
   deleteMemoryFromFirestore,
@@ -177,12 +179,104 @@ export default function App() {
   // 7. Core Application Domain Collections
   const [conversationMessages, setConversationMessages] = useState<ConversationMessage[]>([
     {
-      id: 'init-msg-1',
-      conversationId: 'c1',
+      id: 'msg-seed-1',
+      conversationId: 'c-main',
       role: 'assistant',
       content:
         "Hello! I'm Nexus AI, your ambient operating system for the Alexa+ hackathon. I'm connected to your schedule, communication, tasks, smart home scenes, and commerce. How can I assist your workflow today?",
-      createdAt: 'Just now',
+      createdAt: 'Today, 09:00 AM',
+    },
+    {
+      id: 'msg-seed-2',
+      conversationId: 'c-main',
+      role: 'user',
+      content: 'What events do I have on my calendar tomorrow?',
+      createdAt: 'Today, 09:15 AM',
+    },
+    {
+      id: 'msg-seed-3',
+      conversationId: 'c-main',
+      role: 'assistant',
+      content:
+        'You have 2 scheduled events tomorrow: "Team Standup & Sprint Sync" at 10:00 AM, and "Alexa+ Hackathon Architecture Review" with the core engineering group at 2:30 PM.',
+      createdAt: 'Today, 09:15 AM',
+      toolCalls: [
+        {
+          name: 'google_calendar_list_events',
+          args: { timeMin: '2026-11-11T00:00:00Z', timeMax: '2026-11-11T23:59:59Z' },
+          result: { count: 2, status: 'synced' },
+          status: 'success',
+        },
+      ],
+    },
+    {
+      id: 'msg-seed-4',
+      conversationId: 'c-main',
+      role: 'user',
+      content: 'Check for any urgent unread emails from our hackathon mentors.',
+      createdAt: 'Yesterday, 04:30 PM',
+    },
+    {
+      id: 'msg-seed-5',
+      conversationId: 'c-main',
+      role: 'assistant',
+      content:
+        'Found 1 critical email from AWS Alexa+ Developer Relations with the subject "Hackathon Verification Guidelines & Ephemeral Session Tokens".',
+      createdAt: 'Yesterday, 04:31 PM',
+      toolCalls: [
+        {
+          name: 'gmail_search_threads',
+          args: { q: 'is:unread hackathon mentor' },
+          result: { found: 1, messageId: 'msg-alexa-guide' },
+          status: 'success',
+        },
+      ],
+    },
+    {
+      id: 'msg-seed-6',
+      conversationId: 'c-main',
+      role: 'user',
+      content: 'Order organic almond milk and fresh coffee beans for the morning briefing.',
+      createdAt: '3 days ago',
+    },
+    {
+      id: 'msg-seed-7',
+      conversationId: 'c-main',
+      role: 'assistant',
+      content:
+        'I have drafted a commerce order for Organic Almond Milk ($4.49) and Artisanal Espresso Beans ($16.99). Total is $21.48. Waiting for your confirmation before final checkout.',
+      createdAt: '3 days ago',
+      toolCalls: [
+        {
+          name: 'commerce_draft_order',
+          args: { items: ['Almond Milk', 'Espresso Beans'], total: 21.48 },
+          result: { orderId: 'ord-8831', status: 'pending_approval' },
+          status: 'approval_required',
+        },
+      ],
+    },
+    {
+      id: 'msg-seed-8',
+      conversationId: 'c-main',
+      role: 'user',
+      content: 'Create a task to audit all MCP tool endpoints before deployment.',
+      createdAt: '5 days ago',
+    },
+    {
+      id: 'msg-seed-9',
+      conversationId: 'c-main',
+      role: 'assistant',
+      content:
+        'Created task "Audit all MCP tool endpoints before deployment" with high priority under the workspace category.',
+      createdAt: '5 days ago',
+      toolCalls: [
+        {
+          name: 'task_create',
+          args: { title: 'Audit all MCP tool endpoints before deployment', priority: 'high' },
+          result: { taskId: 't-seed-audit', status: 'created' },
+          status: 'success',
+        },
+      ],
     },
   ]);
 
@@ -1066,6 +1160,20 @@ export default function App() {
     );
   };
 
+  const handleDeleteMessage = (messageId: string) => {
+    setConversationMessages((prev) => prev.filter((m) => m.id !== messageId));
+    if (user) {
+      deleteMessageFromFirestore(messageId).catch(console.warn);
+    }
+  };
+
+  const handleClearHistory = () => {
+    setConversationMessages([]);
+    if (user) {
+      clearUserMessages(user.uid).catch(console.warn);
+    }
+  };
+
   const handleSceneActivate = (sceneName: string) => {
     audioEngine.speak(`Activating smart home scene: ${sceneName}`, preferences.voiceName, true);
     setAssistantReply(`Smart Home Scene "${sceneName}" activated via Matter bridge.`);
@@ -1210,7 +1318,8 @@ export default function App() {
             <ConversationsView
               messages={conversationMessages}
               onSendMessage={handleVoiceCommand}
-              onClearHistory={() => setConversationMessages([])}
+              onClearHistory={handleClearHistory}
+              onDeleteMessage={handleDeleteMessage}
               onPlaySpeech={(text) => audioEngine.speak(text, preferences.voiceName, true)}
             />
           )}

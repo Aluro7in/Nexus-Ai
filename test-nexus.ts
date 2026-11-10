@@ -604,6 +604,58 @@ async function runTestSuite() {
     }
   });
 
+  // 27. Searchable Conversation History & Multi-Criteria Filtering
+  await recordTest('Searchable History', 'Keyword search, participant filters, date ranges, and export functionality', async () => {
+    const conversationsCode = fs.readFileSync('src/components/views/ConversationsView.tsx', 'utf8');
+
+    // 1. Keyword search features
+    if (!conversationsCode.includes('searchQuery') || !conversationsCode.includes('highlightMatches')) {
+      throw new Error('ConversationsView.tsx lacks searchQuery state or highlightMatches helper');
+    }
+    if (!conversationsCode.includes('QUICK_SEARCH_CHIPS')) {
+      throw new Error('ConversationsView.tsx lacks quick search suggestions chips');
+    }
+
+    // 2. Participant filtering options
+    if (!conversationsCode.includes('participantFilter') || !conversationsCode.includes('participantCounts')) {
+      throw new Error('ConversationsView.tsx lacks participant filtering logic');
+    }
+    if (!conversationsCode.includes('all') || !conversationsCode.includes('user') || !conversationsCode.includes('assistant') || !conversationsCode.includes('tools')) {
+      throw new Error('ConversationsView.tsx lacks all/user/assistant/tools participant filter options');
+    }
+
+    // 3. Date filtering options
+    if (!conversationsCode.includes('matchesDateFilter') || !conversationsCode.includes('datePreset')) {
+      throw new Error('ConversationsView.tsx lacks matchesDateFilter or datePreset logic');
+    }
+    if (!conversationsCode.includes('startDate') || !conversationsCode.includes('endDate')) {
+      throw new Error('ConversationsView.tsx lacks custom startDate/endDate range filters');
+    }
+
+    // 4. Export & Message actions
+    if (!conversationsCode.includes('handleExportJSON') || !conversationsCode.includes('handleExportMarkdown')) {
+      throw new Error('ConversationsView.tsx lacks export to JSON or Markdown capability');
+    }
+    if (!conversationsCode.includes('onDeleteMessage') || !conversationsCode.includes('onClearHistory')) {
+      throw new Error('ConversationsView.tsx lacks onDeleteMessage or onClearHistory handlers');
+    }
+
+    // 5. Firestore persistence helpers
+    const firestoreCode = fs.readFileSync('src/lib/firestoreService.ts', 'utf8');
+    if (!firestoreCode.includes('deleteMessageFromFirestore') || !firestoreCode.includes('clearUserMessages')) {
+      throw new Error('firestoreService.ts lacks deleteMessageFromFirestore or clearUserMessages');
+    }
+
+    // 6. App.tsx integration
+    const appCode = fs.readFileSync('src/App.tsx', 'utf8');
+    if (!appCode.includes('handleDeleteMessage') || !appCode.includes('handleClearHistory')) {
+      throw new Error('App.tsx lacks handleDeleteMessage or handleClearHistory');
+    }
+    if (!appCode.includes('onDeleteMessage={handleDeleteMessage}')) {
+      throw new Error('App.tsx does not wire onDeleteMessage to ConversationsView');
+    }
+  });
+
   // Print Summary Table
   console.log('----------------------------------------------------');
   console.log('TEST RESULTS:');
