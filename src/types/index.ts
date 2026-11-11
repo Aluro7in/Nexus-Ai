@@ -1,5 +1,6 @@
 export type VoiceName = 'Zephyr' | 'Puck' | 'Charon' | 'Kore' | 'Fenrir';
 export type VoiceAccent = 'neutral-american' | 'british' | 'australian' | 'indian';
+export type VoiceState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'executing' | 'error';
 
 export interface UserProfile {
   userId: string;

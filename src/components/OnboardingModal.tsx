@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { AudioWaveformVisualizer } from './AudioWaveformVisualizer';
+import type { VoiceState } from '../types';
 
 interface OnboardingModalProps {
   isOpen: boolean;
@@ -30,7 +31,7 @@ interface OnboardingModalProps {
   hasGoogleToken: boolean;
   onLogin: () => void;
   onSampleVoicePrompt: (prompt: string) => void;
-  audioStatus: 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
+  audioStatus: VoiceState;
   isListening: boolean;
   onToggleListening: () => void;
 }

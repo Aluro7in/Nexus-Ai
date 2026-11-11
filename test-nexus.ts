@@ -692,6 +692,64 @@ async function runTestSuite() {
     }
   });
 
+  // 29. Robust Voice Assistant Controls & 5-State Visual Feedback Architecture
+  await recordTest('Voice Assistant Controls', 'Visual cues for listening, thinking, speaking, executing, error, and functional mute/unmute, stop, and disconnect buttons', async () => {
+    // 1. Types validation
+    const typesCode = fs.readFileSync('src/types/index.ts', 'utf8');
+    if (!typesCode.includes("export type VoiceState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'executing' | 'error';")) {
+      throw new Error('src/types/index.ts lacks required VoiceState union with executing state');
+    }
+
+    // 2. AudioWaveformVisualizer handling
+    const vizCode = fs.readFileSync('src/components/AudioWaveformVisualizer.tsx', 'utf8');
+    if (!vizCode.includes('isExecuting') || !vizCode.includes('isError') || !vizCode.includes('emerald')) {
+      throw new Error('AudioWaveformVisualizer lacks executing or error palette handling');
+    }
+
+    // 3. VoiceAssistantPanel visual cues for all 5 states
+    const panelCode = fs.readFileSync('src/components/VoiceAssistantPanel.tsx', 'utf8');
+    const requiredStates = [
+      "effectiveVoiceState === 'listening'",
+      "effectiveVoiceState === 'thinking'",
+      "effectiveVoiceState === 'speaking'",
+      "effectiveVoiceState === 'executing'",
+      "effectiveVoiceState === 'error'",
+    ];
+    for (const st of requiredStates) {
+      if (!panelCode.includes(st)) {
+        throw new Error(`VoiceAssistantPanel lacks visual cue condition for: ${st}`);
+      }
+    }
+
+    // 4. Voice assistant functional control buttons
+    // Mute/Unmute
+    if (!panelCode.includes('handleToggleMute') || !panelCode.includes('isMuted') || !panelCode.includes('Microphone Muted')) {
+      throw new Error('VoiceAssistantPanel lacks functional microphone mute/unmute button');
+    }
+    // Stop
+    if (!panelCode.includes('handleStopAll') || !panelCode.includes('Stop') || !panelCode.includes('audioEngine.interrupt()')) {
+      throw new Error('VoiceAssistantPanel lacks functional stop button interrupting active speech and tasks');
+    }
+    // Disconnect
+    if (!panelCode.includes('handleToggleConnection') || !panelCode.includes('Disconnect') || !panelCode.includes('liveClientRef.current.disconnect()')) {
+      throw new Error('VoiceAssistantPanel lacks functional disconnect button with session lifecycle management');
+    }
+
+    // 5. Accessibility & feedback
+    if (!panelCode.includes('role="status"') || !panelCode.includes('aria-live="polite"') || !panelCode.includes('role="toolbar"')) {
+      throw new Error('VoiceAssistantPanel lacks accessible ARIA live status region or toolbar role');
+    }
+    if (!panelCode.includes('handleKeyDown') || !panelCode.includes("e.key === 'm'") || !panelCode.includes("e.key === 'Escape'")) {
+      throw new Error('VoiceAssistantPanel lacks keyboard shortcut navigation (Space, M, Esc, Alt+D)');
+    }
+
+    // 6. App.tsx executing state orchestration
+    const appCode = fs.readFileSync('src/App.tsx', 'utf8');
+    if (!appCode.includes("setAudioStatus('executing')")) {
+      throw new Error('App.tsx does not set executing status during tool and routine execution');
+    }
+  });
+
   // Print Summary Table
   console.log('----------------------------------------------------');
   console.log('TEST RESULTS:');

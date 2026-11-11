@@ -1,7 +1,8 @@
 import React from 'react';
+import type { VoiceState } from '../types';
 
 interface AudioWaveformVisualizerProps {
-  status: 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
+  status: VoiceState;
   variant?: 'banner' | 'compact' | 'orb';
   barCount?: number;
   className?: string;
@@ -13,10 +14,12 @@ export const AudioWaveformVisualizer: React.FC<AudioWaveformVisualizerProps> = (
   barCount = 28,
   className = '',
 }) => {
-  const isActive = status === 'listening' || status === 'speaking';
   const isListening = status === 'listening';
   const isSpeaking = status === 'speaking';
   const isThinking = status === 'thinking';
+  const isExecuting = status === 'executing';
+  const isError = status === 'error';
+  const isActive = isListening || isSpeaking || isExecuting;
 
   // Palette selection based on voice assistant state
   const primaryGradientId = `wave-grad-primary-${variant}`;
@@ -39,6 +42,14 @@ export const AudioWaveformVisualizer: React.FC<AudioWaveformVisualizerProps> = (
         barStart: '#c084fc',
         barEnd: '#6366f1',
       }
+    : isExecuting
+    ? {
+        primary: '#10b981', // emerald-500
+        secondary: '#14b8a6', // teal-500
+        glow: 'rgba(16, 185, 129, 0.45)',
+        barStart: '#34d399',
+        barEnd: '#059669',
+      }
     : isThinking
     ? {
         primary: '#f59e0b', // amber-500
@@ -46,6 +57,14 @@ export const AudioWaveformVisualizer: React.FC<AudioWaveformVisualizerProps> = (
         glow: 'rgba(245, 158, 11, 0.35)',
         barStart: '#fbbf24',
         barEnd: '#d97706',
+      }
+    : isError
+    ? {
+        primary: '#f43f5e', // rose-500
+        secondary: '#e11d48', // rose-600
+        glow: 'rgba(244, 63, 94, 0.45)',
+        barStart: '#fb7185',
+        barEnd: '#be123c',
       }
     : {
         primary: '#64748b', // slate-500

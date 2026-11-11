@@ -18,13 +18,17 @@ import {
   Clock,
   Layers,
   Flame,
+  Power,
+  Cpu,
 } from 'lucide-react';
 import { AudioWaveformVisualizer } from './AudioWaveformVisualizer';
 import { GeminiLiveClient } from '../lib/geminiLiveClient';
 import { audioRecorder } from '../lib/audioRecorder';
 import { transcribeAudio } from '../lib/gemini';
+import { audioEngine } from '../lib/audio';
+import type { VoiceState } from '../types';
 
-export type VoiceState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
+export type { VoiceState };
 
 interface VoiceAssistantPanelProps {
   audioStatus: VoiceState;
@@ -35,6 +39,8 @@ interface VoiceAssistantPanelProps {
   onInterrupt: () => void;
   onSendMessage: (text: string) => void;
   onQuickPrompt: (prompt: string) => void;
+  onStop?: () => void;
+  onDisconnect?: () => void;
 }
 
 export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
@@ -46,6 +52,8 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
   onInterrupt,
   onSendMessage,
   onQuickPrompt,
+  onStop,
+  onDisconnect,
 }) => {
   // Mode selection: 'live' (Gemini 3.8 Live API) | 'ambient' (Gemini 3.8 Flash) | 'transcribe' (Gemini 3.5 Transcribe)
   const [activeMode, setActiveMode] = useState<'live' | 'ambient' | 'transcribe'>('live');
@@ -153,14 +161,75 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
   };
 
   const handleToggleMute = () => {
-    setIsMuted(!isMuted);
-    if (!isMuted) {
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    if (nextMuted) {
+      setMicAudioLevel(0);
       if (activeMode === 'live' && liveClientRef.current) {
         liveClientRef.current.stopMicrophone();
       }
+      setAriaAnnouncement('Microphone muted.');
     } else {
       if (activeMode === 'live' && liveClientRef.current) {
         liveClientRef.current.startMicrophone().catch(console.warn);
+      }
+      setAriaAnnouncement('Microphone unmuted and listening.');
+    }
+  };
+
+  const handleStopAll = () => {
+    // 1. Interrupt active Live audio and playback
+    if (liveClientRef.current) {
+      liveClientRef.current.interrupt();
+    }
+    // 2. Stop audio engine playback and web speech
+    audioEngine.interrupt();
+    // 3. Stop transcription recorder if active
+    if (isRecordingTranscribe && audioRecorder.isRecording()) {
+      audioRecorder.stop().catch(console.warn);
+      setIsRecordingTranscribe(false);
+    }
+    // 4. Notify parent callbacks
+    onInterrupt();
+    onStop?.();
+    setAriaAnnouncement('Voice assistant stopped. Active speech and executions halted.');
+  };
+
+  const handleToggleConnection = async () => {
+    if (activeMode === 'live') {
+      if (liveStatus !== 'disconnected') {
+        if (liveClientRef.current) {
+          liveClientRef.current.disconnect();
+        }
+        setLiveStatus('disconnected');
+        setMicAudioLevel(0);
+        onDisconnect?.();
+        setAriaAnnouncement('Live voice session disconnected.');
+      } else {
+        setLiveError(null);
+        setLiveStatus('connecting');
+        setAriaAnnouncement('Connecting to Live voice stream...');
+        try {
+          await liveClientRef.current?.connect();
+          if (!isMuted) {
+            await liveClientRef.current?.startMicrophone();
+          }
+          setAriaAnnouncement('Live voice session connected.');
+        } catch (err: any) {
+          setLiveError(err.message || 'Failed to connect Live session');
+          setLiveStatus('error');
+          setAriaAnnouncement('Failed to connect Live session.');
+        }
+      }
+    } else {
+      if (isListening) {
+        onToggleListening();
+        audioEngine.interrupt();
+        onDisconnect?.();
+        setAriaAnnouncement('Ambient voice session stopped.');
+      } else {
+        onToggleListening();
+        setAriaAnnouncement('Ambient voice session started.');
       }
     }
   };
@@ -240,7 +309,9 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
   // Effective voice state resolution
   // -------------------------------------------------------------
   const effectiveVoiceState: VoiceState =
-    activeMode === 'live'
+    audioStatus === 'executing'
+      ? 'executing'
+      : activeMode === 'live'
       ? liveStatus === 'speaking'
         ? 'speaking'
         : liveStatus === 'listening'
@@ -249,8 +320,63 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
         ? 'thinking'
         : liveStatus === 'error'
         ? 'error'
+        : audioStatus === 'thinking'
+        ? 'thinking'
         : 'idle'
       : audioStatus;
+
+  // ARIA Live announcement state
+  const [ariaAnnouncement, setAriaAnnouncement] = useState('Voice assistant ready');
+
+  useEffect(() => {
+    const announcements: Record<VoiceState, string> = {
+      idle: 'Voice assistant is in standby.',
+      listening: 'Voice assistant is listening for speech input.',
+      thinking: 'Voice assistant is reasoning and formulating response.',
+      speaking: 'Voice assistant is speaking response.',
+      executing: 'Voice assistant is executing requested workflow actions and tools.',
+      error: 'Voice assistant encountered an error. Check microphone access or retry.',
+    };
+    setAriaAnnouncement(announcements[effectiveVoiceState] || 'Voice assistant status updated.');
+  }, [effectiveVoiceState]);
+
+  // Keyboard navigation & accessible shortcuts:
+  // Space: Talk/Toggle, M: Mute, Esc/S: Stop, Alt+D: Disconnect
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isEditing =
+        activeEl &&
+        (activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          (activeEl as HTMLElement).isContentEditable);
+
+      if (isEditing) return;
+
+      if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        if (effectiveVoiceState === 'speaking' || effectiveVoiceState === 'executing') {
+          handleStopAll();
+        } else if (activeMode === 'live') {
+          handleToggleLiveSession();
+        } else {
+          onToggleListening();
+        }
+      } else if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        handleToggleMute();
+      } else if (e.key === 'Escape' || e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        handleStopAll();
+      } else if (e.altKey && (e.key === 'd' || e.key === 'D')) {
+        e.preventDefault();
+        handleToggleConnection();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [effectiveVoiceState, activeMode, isMuted, liveStatus, isListening]);
 
   // Text submit handler
   const handleSubmit = (e: React.FormEvent) => {
@@ -364,6 +490,14 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
             </>
           )}
 
+          {effectiveVoiceState === 'executing' && (
+            <>
+              <div className="absolute h-52 w-52 rounded-full border border-emerald-400/50 animate-spin-slow" />
+              <div className="absolute h-44 w-44 rounded-full border border-teal-400/50 animate-ping opacity-60" />
+              <div className="absolute h-36 w-36 rounded-full bg-emerald-500/20 blur-xl animate-pulse" />
+            </>
+          )}
+
           {effectiveVoiceState === 'error' && (
             <div className="absolute h-44 w-44 rounded-full border border-rose-500/40 animate-pulse bg-rose-500/10 blur-md" />
           )}
@@ -371,8 +505,8 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
           {/* Master Glowing Interactive Sphere */}
           <button
             onClick={
-              effectiveVoiceState === 'speaking'
-                ? handleBargeIn
+              effectiveVoiceState === 'speaking' || effectiveVoiceState === 'executing'
+                ? handleStopAll
                 : activeMode === 'live'
                 ? handleToggleLiveSession
                 : onToggleListening
@@ -383,6 +517,8 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
                 ? 'scale-105 shadow-[0_0_60px_rgba(6,182,212,0.65)]'
                 : effectiveVoiceState === 'speaking'
                 ? 'scale-105 shadow-[0_0_60px_rgba(168,85,247,0.7)]'
+                : effectiveVoiceState === 'executing'
+                ? 'scale-105 shadow-[0_0_60px_rgba(16,185,129,0.7)]'
                 : effectiveVoiceState === 'thinking'
                 ? 'shadow-[0_0_45px_rgba(245,158,11,0.55)]'
                 : effectiveVoiceState === 'error'
@@ -397,6 +533,8 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
                   ? 'bg-gradient-to-tr from-cyan-600 via-teal-400 to-cyan-300 animate-spin-slow'
                   : effectiveVoiceState === 'speaking'
                   ? 'bg-gradient-to-tr from-purple-600 via-indigo-500 to-pink-400 animate-pulse'
+                  : effectiveVoiceState === 'executing'
+                  ? 'bg-gradient-to-tr from-emerald-600 via-teal-400 to-emerald-300 animate-spin-slow'
                   : effectiveVoiceState === 'thinking'
                   ? 'bg-gradient-to-tr from-amber-500 via-orange-400 to-amber-300 animate-spin-slow'
                   : effectiveVoiceState === 'error'
@@ -411,7 +549,14 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
                 <div className="flex flex-col items-center">
                   <Square className="h-8 w-8 text-purple-300 fill-current animate-pulse" />
                   <span className="text-[10px] font-bold text-purple-200 mt-1 uppercase tracking-wider">
-                    Stop / Barge-in
+                    Stop / Halt
+                  </span>
+                </div>
+              ) : effectiveVoiceState === 'executing' ? (
+                <div className="flex flex-col items-center">
+                  <Zap className="h-8 w-8 text-emerald-300 animate-pulse" />
+                  <span className="text-[10px] font-bold text-emerald-200 mt-1 uppercase tracking-wider">
+                    Executing
                   </span>
                 </div>
               ) : effectiveVoiceState === 'listening' ? (
@@ -456,6 +601,8 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
                   ? 'bg-cyan-400 animate-ping'
                   : effectiveVoiceState === 'speaking'
                   ? 'bg-purple-400 animate-pulse'
+                  : effectiveVoiceState === 'executing'
+                  ? 'bg-emerald-400 animate-ping'
                   : effectiveVoiceState === 'thinking'
                   ? 'bg-amber-400 animate-pulse'
                   : effectiveVoiceState === 'error'
@@ -468,6 +615,8 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
                 ? activeMode === 'live'
                   ? 'Streaming Live Audio at 16kHz PCM (gemini-3.8-live)...'
                   : 'Listening to ambient voice input...'
+                : effectiveVoiceState === 'executing'
+                ? 'Executing requested workflow routines & workspace actions...'
                 : effectiveVoiceState === 'thinking'
                 ? 'Reasoning with Gemini Live model...'
                 : effectiveVoiceState === 'speaking'
@@ -475,7 +624,9 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
                 : effectiveVoiceState === 'error'
                 ? liveError || 'Voice engine connection issue'
                 : activeMode === 'live'
-                ? 'Gemini 3.8 Live API standing by — tap orb to start voice stream'
+                ? liveStatus === 'disconnected'
+                  ? 'Gemini Live stream disconnected — click Connect or press Alt+D'
+                  : 'Gemini 3.8 Live API standing by — tap orb to start voice stream'
                 : 'Nexus ambient listener standing by'}
             </span>
           </div>
@@ -486,36 +637,82 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
           <AudioWaveformVisualizer status={effectiveVoiceState} variant="banner" barCount={32} />
         </div>
 
-        {/* Dedicated Microphone & Voice Controls Bar */}
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-          {/* Mute/Unmute Mic Toggle */}
+        {/* Dedicated Voice Assistant Controls Bar (Mute/Unmute, Stop, Disconnect) */}
+        <div
+          role="toolbar"
+          aria-label="Voice assistant interaction controls"
+          className="mt-5 flex flex-wrap items-center justify-center gap-2.5 sm:gap-3 w-full max-w-xl"
+        >
+          {/* 1. Mute/Unmute Mic Toggle Button */}
           <button
+            type="button"
             onClick={handleToggleMute}
-            className={`flex items-center space-x-2 rounded-xl px-3.5 py-1.5 text-xs font-medium border transition-all ${
+            aria-pressed={isMuted}
+            aria-label={isMuted ? 'Unmute microphone (shortcut: M)' : 'Mute microphone (shortcut: M)'}
+            title={isMuted ? 'Unmute microphone (M)' : 'Mute microphone (M)'}
+            className={`min-h-[44px] min-w-[44px] flex items-center space-x-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 cursor-pointer ${
               isMuted
-                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                : 'bg-slate-900/90 text-slate-300 border-slate-700 hover:border-cyan-500/50'
+                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/50 hover:bg-rose-500/30'
+                : 'bg-slate-900/90 text-slate-200 border border-slate-700/80 hover:border-cyan-500/50 hover:bg-slate-800'
             }`}
           >
-            {isMuted ? <MicOff className="h-4 w-4 text-rose-400" /> : <Mic className="h-4 w-4 text-cyan-400" />}
+            {isMuted ? <MicOff className="h-4 w-4 text-rose-400 shrink-0" /> : <Mic className="h-4 w-4 text-cyan-400 shrink-0" />}
             <span>{isMuted ? 'Microphone Muted' : 'Microphone Live'}</span>
+            <span className="hidden sm:inline-block text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
+              M
+            </span>
           </button>
 
-          {/* Barge-in / Interrupt AI button */}
-          {effectiveVoiceState === 'speaking' && (
-            <button
-              onClick={handleBargeIn}
-              className="flex items-center space-x-1.5 rounded-xl px-3.5 py-1.5 text-xs font-semibold bg-purple-500/20 text-purple-200 border border-purple-500/40 hover:bg-purple-500/30 transition-all animate-pulse"
-            >
-              <Zap className="h-3.5 w-3.5 text-purple-300" />
-              <span>Barge-in / Interrupt</span>
-            </button>
-          )}
+          {/* 2. Stop Button */}
+          <button
+            type="button"
+            onClick={handleStopAll}
+            aria-label="Stop audio speech playback and cancel active execution (shortcut: Esc or S)"
+            title="Stop audio speech playback and cancel active execution (Esc)"
+            className="min-h-[44px] min-w-[44px] flex items-center space-x-2 rounded-xl px-4 py-2.5 text-xs font-semibold bg-slate-900/90 text-slate-200 border border-slate-700/80 hover:border-rose-500/60 hover:bg-rose-950/40 hover:text-rose-200 transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 cursor-pointer"
+          >
+            <Square className="h-3.5 w-3.5 text-rose-400 fill-current shrink-0" />
+            <span>Stop</span>
+            <span className="hidden sm:inline-block text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
+              Esc
+            </span>
+          </button>
+
+          {/* 3. Disconnect / Connect Button */}
+          <button
+            type="button"
+            onClick={handleToggleConnection}
+            aria-pressed={activeMode === 'live' ? liveStatus !== 'disconnected' : isListening}
+            aria-label={
+              (activeMode === 'live' ? liveStatus !== 'disconnected' : isListening)
+                ? 'Disconnect voice session (shortcut: Alt+D)'
+                : 'Connect voice session (shortcut: Alt+D)'
+            }
+            title={
+              (activeMode === 'live' ? liveStatus !== 'disconnected' : isListening)
+                ? 'Disconnect voice session (Alt+D)'
+                : 'Connect voice session (Alt+D)'
+            }
+            className={`min-h-[44px] min-w-[44px] flex items-center space-x-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 cursor-pointer ${
+              (activeMode === 'live' ? liveStatus !== 'disconnected' : isListening)
+                ? 'bg-slate-900/90 text-slate-200 border border-slate-700/80 hover:border-amber-500/50 hover:bg-amber-950/30 hover:text-amber-200'
+                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
+            }`}
+          >
+            <Power className={`h-4 w-4 shrink-0 ${(activeMode === 'live' ? liveStatus !== 'disconnected' : isListening) ? 'text-amber-400' : 'text-emerald-400'}`} />
+            <span>{(activeMode === 'live' ? liveStatus !== 'disconnected' : isListening) ? 'Disconnect' : 'Connect'}</span>
+            <span className="hidden sm:inline-block text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
+              Alt+D
+            </span>
+          </button>
 
           {/* Audio Input Level Meter */}
-          {effectiveVoiceState === 'listening' && (
-            <div className="flex items-center space-x-1.5 bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-800">
-              <span className="text-[10px] uppercase font-mono text-slate-400">Mic Level:</span>
+          {effectiveVoiceState === 'listening' && !isMuted && (
+            <div
+              aria-label={`Microphone input level: ${Math.round(micAudioLevel * 100)}%`}
+              className="flex items-center space-x-1.5 bg-slate-900/80 px-3 py-2 rounded-xl border border-slate-800"
+            >
+              <span className="text-[10px] uppercase font-mono text-slate-400">Level:</span>
               <div className="flex items-center space-x-0.5 h-3">
                 {[0.2, 0.4, 0.6, 0.8, 1.0].map((threshold, idx) => (
                   <div
@@ -529,6 +726,23 @@ export const VoiceAssistantPanel: React.FC<VoiceAssistantPanelProps> = ({
             </div>
           )}
         </div>
+
+        {/* Accessible Keyboard Shortcut Legend */}
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-[11px] text-slate-400 font-mono">
+          <span><kbd className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">Space</kbd> Talk/Orb</span>
+          <span className="text-slate-600">·</span>
+          <span><kbd className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">M</kbd> Mute</span>
+          <span className="text-slate-600">·</span>
+          <span><kbd className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">Esc</kbd> Stop</span>
+          <span className="text-slate-600">·</span>
+          <span><kbd className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">Alt+D</kbd> Disconnect</span>
+        </div>
+
+        {/* Hidden ARIA Live region announcing state changes to screen readers */}
+        <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+          {ariaAnnouncement}
+        </div>
+
 
         {/* Live Error / Microphone Permission Advisory Banner */}
         {liveError && (

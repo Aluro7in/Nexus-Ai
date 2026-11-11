@@ -3,7 +3,7 @@ import { VoiceAssistantPanel } from '../VoiceAssistantPanel';
 import { SmartDisplayHub } from '../SmartDisplayHub';
 import { GenuineWorkspaceWorkflow } from '../GenuineWorkspaceWorkflow';
 import type { CalendarEvent, GmailMessageSummary, GoogleTaskItem } from '../../lib/workspace';
-import type { WorkflowStep } from '../../types';
+import type { WorkflowStep, VoiceState } from '../../types';
 import {
   Sparkles,
   ShieldCheck,
@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 
 interface HomeViewProps {
-  audioStatus: 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
+  audioStatus: VoiceState;
   transcript: string;
   assistantReply: string;
   isListening: boolean;
@@ -41,6 +41,8 @@ interface HomeViewProps {
   onInterrupt: () => void;
   onSendMessage: (text: string) => void;
   onQuickPrompt: (prompt: string) => void;
+  onStop?: () => void;
+  onDisconnect?: () => void;
   events: CalendarEvent[];
   messages: GmailMessageSummary[];
   tasks: GoogleTaskItem[];
@@ -66,6 +68,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onInterrupt,
   onSendMessage,
   onQuickPrompt,
+  onStop,
+  onDisconnect,
   events,
   messages,
   tasks,
@@ -164,6 +168,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
           onInterrupt={onInterrupt}
           onSendMessage={onSendMessage}
           onQuickPrompt={onQuickPrompt}
+          onStop={onStop}
+          onDisconnect={onDisconnect}
         />
       </section>
 

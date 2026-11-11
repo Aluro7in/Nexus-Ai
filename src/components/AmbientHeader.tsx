@@ -16,12 +16,13 @@ import {
 } from 'lucide-react';
 import { AudioWaveformVisualizer } from './AudioWaveformVisualizer';
 import type { User } from 'firebase/auth';
+import type { VoiceState } from '../types';
 
 interface AmbientHeaderProps {
   user: User | null;
   onLogin: () => void;
   onLogout: () => void;
-  audioStatus: 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
+  audioStatus: VoiceState;
   isMuted: boolean;
   onToggleMute: () => void;
   mcpStatus: 'live_nexus_core' | 'auth_required' | 'demo_adapter';
@@ -129,15 +130,19 @@ export const AmbientHeader: React.FC<AmbientHeaderProps> = ({
                   ? 'bg-cyan-400 animate-ping'
                   : audioStatus === 'speaking'
                   ? 'bg-purple-400 animate-bounce'
+                  : audioStatus === 'executing'
+                  ? 'bg-emerald-400 animate-ping'
                   : audioStatus === 'thinking'
                   ? 'bg-amber-400 animate-pulse'
+                  : audioStatus === 'error'
+                  ? 'bg-rose-400 animate-ping'
                   : 'bg-slate-400 dark:bg-slate-600'
               }`}
             />
             <span className="text-[11px] font-medium uppercase tracking-wider text-slate-700 dark:text-slate-300">
               {audioStatus}
             </span>
-            {(audioStatus === 'listening' || audioStatus === 'speaking') && (
+            {(audioStatus === 'listening' || audioStatus === 'speaking' || audioStatus === 'executing') && (
               <AudioWaveformVisualizer status={audioStatus} variant="compact" className="ml-1" />
             )}
           </div>

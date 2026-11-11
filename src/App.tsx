@@ -66,6 +66,7 @@ import type {
   OrderItem,
   UserPreference,
   UserProfile,
+  VoiceState,
 } from './types';
 
 // Components
@@ -74,7 +75,7 @@ import { Navigation } from './components/Navigation';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { OnboardingModal } from './components/OnboardingModal';
 import { AudioWaveformVisualizer } from './components/AudioWaveformVisualizer';
-import { Mic, Volume2, Square, X, Radio } from 'lucide-react';
+import { Mic, MicOff, Volume2, Square, X, Radio, Activity, Power } from 'lucide-react';
 
 // Views
 import { HomeView } from './components/views/HomeView';
@@ -99,7 +100,7 @@ export default function App() {
   const [activeView, setActiveView] = useState<string>('home');
 
   // 3. Audio & Assistant State
-  const [audioStatus, setAudioStatus] = useState<'idle' | 'listening' | 'thinking' | 'speaking' | 'error'>('idle');
+  const [audioStatus, setAudioStatus] = useState<VoiceState>('idle');
   const [isListening, setIsListening] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -714,6 +715,7 @@ export default function App() {
       // Pop the most recent action from history
       const lastAction = historyStack[historyStack.length - 1];
       setActionHistory((prev) => prev.slice(0, -1));
+      setAudioStatus('executing');
 
       if (lastAction.type === 'task_creation') {
         const { task } = lastAction;
@@ -828,7 +830,8 @@ export default function App() {
 
       setAssistantReply(reply);
 
-      // Tool Invocation Detection
+      // Tool Invocation Detection & Workflow Execution
+      setAudioStatus('executing');
       const detectedToolCalls: ConversationMessage['toolCalls'] = [];
 
       if (lower.includes('schedule') || lower.includes('calendar') || lower.includes('meeting')) {
@@ -1312,6 +1315,11 @@ export default function App() {
               isListening={isListening}
               onToggleListening={toggleListening}
               onInterrupt={handleInterrupt}
+              onStop={handleInterrupt}
+              onDisconnect={() => {
+                handleInterrupt();
+                setIsListening(false);
+              }}
               onSendMessage={handleVoiceCommand}
               onQuickPrompt={handleVoiceCommand}
               events={events}
@@ -1500,13 +1508,16 @@ export default function App() {
       </div>
 
       {/* Voice Assistant Visual Audio Waveform & Frequency Bar Overlay (Active during 'listening' & 'speaking') */}
-      {(audioStatus === 'listening' || audioStatus === 'speaking') && (
+      {/* Voice Assistant Visual Audio Waveform & Frequency Bar Overlay (Active during 'listening', 'executing' & 'speaking') */}
+      {(audioStatus === 'listening' || audioStatus === 'speaking' || audioStatus === 'executing') && (
         <aside
           role="region"
           aria-label="Active voice assistant interaction"
           className={`fixed bottom-5 right-5 left-5 sm:left-auto sm:w-[480px] z-50 overflow-hidden rounded-2xl border backdrop-blur-xl shadow-2xl transition-all duration-300 ${
             audioStatus === 'listening'
               ? 'border-cyan-500/40 bg-slate-950/90 shadow-cyan-950/50'
+              : audioStatus === 'executing'
+              ? 'border-emerald-500/40 bg-slate-950/90 shadow-emerald-950/50'
               : 'border-purple-500/40 bg-slate-950/90 shadow-purple-950/50'
           }`}
         >
@@ -1515,6 +1526,8 @@ export default function App() {
             className={`h-1 w-full ${
               audioStatus === 'listening'
                 ? 'bg-gradient-to-r from-transparent via-cyan-400 to-transparent'
+                : audioStatus === 'executing'
+                ? 'bg-gradient-to-r from-transparent via-emerald-400 to-transparent'
                 : 'bg-gradient-to-r from-transparent via-purple-400 to-transparent'
             }`}
           />
@@ -1527,52 +1540,81 @@ export default function App() {
                   className={`flex h-8 w-8 items-center justify-center rounded-lg border ${
                     audioStatus === 'listening'
                       ? 'border-cyan-500/40 bg-cyan-500/20 text-cyan-300'
+                      : audioStatus === 'executing'
+                      ? 'border-emerald-500/40 bg-emerald-500/20 text-emerald-300'
                       : 'border-purple-500/40 bg-purple-500/20 text-purple-300'
                   }`}
                 >
                   {audioStatus === 'listening' ? (
                     <Mic className="h-4 w-4 animate-bounce" />
+                  ) : audioStatus === 'executing' ? (
+                    <Activity className="h-4 w-4 animate-spin" />
                   ) : (
                     <Volume2 className="h-4 w-4 animate-pulse" />
                   )}
                 </div>
                 <div>
                   <div className="flex items-center space-x-2 text-xs font-semibold tracking-wide text-white">
-                    <span>{audioStatus === 'listening' ? 'Voice Input Active' : 'Speech Output Active'}</span>
+                    <span>
+                      {audioStatus === 'listening'
+                        ? 'Voice Input Active'
+                        : audioStatus === 'executing'
+                        ? 'Executing Action'
+                        : 'Speech Output Active'}
+                    </span>
                     <span className="text-slate-500">·</span>
                     <span
                       className={`text-[10px] font-mono uppercase tracking-wider ${
-                        audioStatus === 'listening' ? 'text-cyan-400' : 'text-purple-400'
+                        audioStatus === 'listening'
+                          ? 'text-cyan-400'
+                          : audioStatus === 'executing'
+                          ? 'text-emerald-400'
+                          : 'text-purple-400'
                       }`}
                     >
-                      {audioStatus === 'listening' ? 'Natural Speech' : preferences.voiceName}
+                      {audioStatus === 'listening'
+                        ? 'Natural Speech'
+                        : audioStatus === 'executing'
+                        ? 'Tool Action'
+                        : preferences.voiceName}
                     </span>
                   </div>
                   <div className="text-[11px] text-slate-400">
-                    {audioStatus === 'listening' ? 'Listening to voice stream' : 'Synthesizing response'}
+                    {audioStatus === 'listening'
+                      ? 'Listening to voice stream'
+                      : audioStatus === 'executing'
+                      ? 'Executing workspace tool routines'
+                      : 'Synthesizing response'}
                   </div>
                 </div>
               </div>
 
-              {/* Action buttons */}
+              {/* Action buttons (Mute, Stop, Done) */}
               <div className="flex items-center space-x-2">
-                {audioStatus === 'speaking' ? (
-                  <button
-                    onClick={handleInterrupt}
-                    className="flex items-center space-x-1.5 rounded-lg border border-purple-500/40 bg-purple-500/20 px-3 py-1.5 text-xs font-medium text-purple-200 hover:bg-purple-500/30 transition-colors"
-                  >
-                    <Square className="h-3 w-3 fill-current" />
-                    <span>Stop</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={toggleListening}
-                    className="flex items-center space-x-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/20 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-500/30 transition-colors"
-                  >
-                    <Square className="h-3 w-3 fill-current" />
-                    <span>Done</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setIsMuted(!isMuted)}
+                  title={isMuted ? 'Unmute microphone' : 'Mute microphone'}
+                  aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
+                  aria-pressed={isMuted}
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-colors cursor-pointer ${
+                    isMuted
+                      ? 'border-rose-500/40 bg-rose-500/20 text-rose-300'
+                      : 'border-slate-700 bg-slate-800 text-slate-300 hover:text-white'
+                  }`}
+                >
+                  {isMuted ? <MicOff className="h-3.5 w-3.5 text-rose-400" /> : <Mic className="h-3.5 w-3.5 text-cyan-400" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleInterrupt}
+                  title="Stop audio speech playback & action execution"
+                  aria-label="Stop audio speech playback & action execution"
+                  className="flex items-center space-x-1.5 rounded-lg border border-rose-500/40 bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-200 hover:bg-rose-500/30 transition-colors cursor-pointer"
+                >
+                  <Square className="h-3 w-3 fill-current" />
+                  <span>Stop</span>
+                </button>
               </div>
             </div>
 
@@ -1593,6 +1635,8 @@ export default function App() {
                 ) : (
                   <span className="text-slate-400">Listening for your command...</span>
                 )
+              ) : audioStatus === 'executing' ? (
+                <span className="text-emerald-200 truncate block">Executing tools & routines: "{transcript}"</span>
               ) : assistantReply ? (
                 <span className="text-purple-200 truncate block">"{assistantReply}"</span>
               ) : (
