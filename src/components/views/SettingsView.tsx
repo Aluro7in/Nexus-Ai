@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Settings,
   User,
   Volume2,
+  Volume1,
   Cpu,
   Shield,
   Palette,
@@ -117,8 +118,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   // -------------------------------------------------------------
   const [voiceSpeed, setVoiceSpeed] = useState<number>(preferences.voiceSpeed ?? 1.0);
   const [voicePitch, setVoicePitch] = useState<number>(preferences.voicePitch ?? 1.0);
+  const [voiceVolume, setVoiceVolume] = useState<number>(preferences.voiceVolume ?? 1.0);
+  const previousVolumeRef = useRef<number>(
+    preferences.voiceVolume && preferences.voiceVolume > 0 ? preferences.voiceVolume : 1.0
+  );
   const [voiceAccent, setVoiceAccent] = useState<VoiceAccent>(preferences.voiceAccent ?? 'neutral-american');
   const [isPlayingSample, setIsPlayingSample] = useState(false);
+
+  useEffect(() => {
+    if (preferences.voiceSpeed !== undefined) setVoiceSpeed(preferences.voiceSpeed);
+    if (preferences.voicePitch !== undefined) setVoicePitch(preferences.voicePitch);
+    if (preferences.voiceAccent !== undefined) setVoiceAccent(preferences.voiceAccent);
+    if (preferences.voiceVolume !== undefined) {
+      setVoiceVolume(preferences.voiceVolume);
+      audioEngine.setVolume(preferences.voiceVolume);
+      if (preferences.voiceVolume > 0) {
+        previousVolumeRef.current = preferences.voiceVolume;
+      }
+    }
+  }, [preferences.voiceSpeed, preferences.voicePitch, preferences.voiceAccent, preferences.voiceVolume]);
 
   // -------------------------------------------------------------
   // MCP Backend URL Local State
@@ -206,13 +224,38 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
 
     setIsPlayingSample(true);
-    const sampleText = `Hello! I am your Nexus AI ambient operating assistant, speaking with the ${preferences.voiceName} persona at ${voiceSpeed}x speed.`;
+    const sampleText = `Hello! I am your Nexus AI ambient operating assistant, speaking with the ${preferences.voiceName} persona at ${Math.round(voiceVolume * 100)}% volume and ${voiceSpeed.toFixed(2)}x speed.`;
     await audioEngine.speak(sampleText, preferences.voiceName, true, {
       speed: voiceSpeed,
       pitch: voicePitch,
       accent: voiceAccent,
+      volume: voiceVolume,
     });
     setIsPlayingSample(false);
+  };
+
+  // Assistant Output Volume Change Handler (with Real-Time Playback Adjustment)
+  const handleVolumeChange = (vol: number) => {
+    const clamped = Math.max(0, Math.min(1, typeof vol === 'number' && !isNaN(vol) ? vol : 1.0));
+    setVoiceVolume(clamped);
+    if (clamped > 0) {
+      previousVolumeRef.current = clamped;
+    }
+    // Real-time live adjustment on active audioEngine (immediately changes active playing audio!)
+    audioEngine.setVolume(clamped);
+    // Persist to user preferences
+    onUpdatePreferences({ voiceVolume: clamped });
+  };
+
+  // Mute / Unmute Volume Toggle Handler
+  const handleToggleMuteVolume = () => {
+    if (voiceVolume > 0) {
+      previousVolumeRef.current = voiceVolume;
+      handleVolumeChange(0);
+    } else {
+      const restored = previousVolumeRef.current > 0 ? previousVolumeRef.current : 0.85;
+      handleVolumeChange(restored);
+    }
   };
 
   // Voice Speed Change Handler
@@ -653,7 +696,128 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
 
-        {/* 4. Proactive Speech Toggle */}
+        {/* 4. Assistant Audio Output Volume Slider (with Real-Time Live Playback Adjustment) */}
+        <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center space-x-2.5">
+              <button
+                type="button"
+                onClick={handleToggleMuteVolume}
+                title={voiceVolume === 0 ? 'Unmute assistant audio output' : 'Mute assistant audio output'}
+                aria-label={voiceVolume === 0 ? 'Unmute assistant audio output' : 'Mute assistant audio output'}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 text-slate-700 dark:text-slate-300 hover:text-cyan-500 hover:border-cyan-500/50 transition-all cursor-pointer"
+              >
+                {voiceVolume === 0 ? (
+                  <VolumeX className="h-4 w-4 text-rose-500" />
+                ) : voiceVolume < 0.5 ? (
+                  <Volume1 className="h-4 w-4 text-cyan-500" />
+                ) : (
+                  <Volume2 className="h-4 w-4 text-cyan-500" />
+                )}
+              </button>
+              <div>
+                <label
+                  htmlFor="assistant-output-volume-slider"
+                  className="text-xs font-semibold text-slate-800 dark:text-slate-200 block"
+                >
+                  Assistant Output Volume
+                </label>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Real-time master output volume applied immediately to active speech playback.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2 shrink-0">
+              <span
+                className={`text-xs font-mono font-bold px-2.5 py-1 rounded-md border ${
+                  voiceVolume === 0
+                    ? 'bg-rose-500/10 text-rose-500 border-rose-500/30'
+                    : 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/30'
+                }`}
+              >
+                {voiceVolume === 0 ? 'Muted (0%)' : `${Math.round(voiceVolume * 100)}%`}
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <input
+              id="assistant-output-volume-slider"
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={voiceVolume}
+              onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+              aria-label="Assistant Output Volume Slider"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(voiceVolume * 100)}
+              aria-valuetext={`${Math.round(voiceVolume * 100)} percent`}
+              className="w-full accent-cyan-500 h-2 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer"
+            />
+
+            {/* Quick volume presets */}
+            <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] text-slate-400 font-mono">
+              <button
+                type="button"
+                onClick={() => handleVolumeChange(0)}
+                className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                  voiceVolume === 0 ? 'bg-rose-500/20 text-rose-400 font-bold' : 'hover:text-slate-200'
+                }`}
+              >
+                0% (Mute)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleVolumeChange(0.25)}
+                className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                  Math.abs(voiceVolume - 0.25) < 0.03
+                    ? 'bg-cyan-500/20 text-cyan-400 font-bold'
+                    : 'hover:text-cyan-400'
+                }`}
+              >
+                25% (Quiet)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleVolumeChange(0.50)}
+                className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                  Math.abs(voiceVolume - 0.50) < 0.03
+                    ? 'bg-cyan-500/20 text-cyan-400 font-bold'
+                    : 'hover:text-cyan-400'
+                }`}
+              >
+                50% (Medium)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleVolumeChange(0.75)}
+                className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                  Math.abs(voiceVolume - 0.75) < 0.03
+                    ? 'bg-cyan-500/20 text-cyan-400 font-bold'
+                    : 'hover:text-cyan-400'
+                }`}
+              >
+                75% (Comfort)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleVolumeChange(1.0)}
+                className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                  voiceVolume >= 0.98
+                    ? 'bg-cyan-500/20 text-cyan-400 font-bold'
+                    : 'hover:text-cyan-400'
+                }`}
+              >
+                100% (Max)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 5. Proactive Speech Toggle */}
         <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800/80">
           <div>
             <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">

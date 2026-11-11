@@ -9,6 +9,7 @@ interface IWindow extends Window {
 export class NexusAudioEngine {
   private recognition: any = null;
   private currentAudio: HTMLAudioElement | null = null;
+  private volume: number = 1.0; // 0.0 to 1.0
   private isListening = false;
   private isMuted = false;
   private onTranscriptCallback: ((text: string, isFinal: boolean) => void) | null = null;
@@ -118,6 +119,29 @@ export class NexusAudioEngine {
     return this.isMuted;
   }
 
+  /**
+   * Set assistant output volume (0.0 to 1.0) with immediate real-time playback adjustment
+   */
+  setVolume(vol: number): number {
+    const clamped = Math.max(0, Math.min(1, typeof vol === 'number' && !isNaN(vol) ? vol : 1.0));
+    this.volume = clamped;
+
+    // Real-time immediate adjustment on currently playing HTMLAudioElement
+    if (this.currentAudio) {
+      try {
+        this.currentAudio.volume = clamped;
+      } catch (err) {
+        console.warn('Failed to update volume on active audio element:', err);
+      }
+    }
+
+    return this.volume;
+  }
+
+  getVolume(): number {
+    return this.volume;
+  }
+
   interrupt() {
     if (this.currentAudio) {
       this.currentAudio.pause();
@@ -134,9 +158,13 @@ export class NexusAudioEngine {
     text: string,
     voiceName: string = 'Zephyr',
     autoSpeak: boolean = true,
-    options?: { speed?: number; pitch?: number; accent?: string }
+    options?: { speed?: number; pitch?: number; accent?: string; volume?: number }
   ): Promise<void> {
     if (!autoSpeak || !text) return;
+
+    if (typeof options?.volume === 'number') {
+      this.setVolume(options.volume);
+    }
 
     this.interrupt();
     if (this.onStatusChangeCallback) this.onStatusChangeCallback('speaking');
@@ -152,6 +180,7 @@ export class NexusAudioEngine {
         const audioUrl = `data:${res.mimeType || 'audio/wav'};base64,${res.audioBase64}`;
         const audio = new Audio(audioUrl);
         audio.playbackRate = effectiveSpeed;
+        audio.volume = this.volume; // Set output volume
         this.currentAudio = audio;
 
         audio.onended = () => {
@@ -160,7 +189,7 @@ export class NexusAudioEngine {
         };
 
         audio.onerror = () => {
-          this.fallbackWebSpeech(text, effectiveSpeed, effectivePitch, options?.accent);
+          this.fallbackWebSpeech(text, effectiveSpeed, effectivePitch, options?.accent, this.volume);
         };
 
         await audio.play();
@@ -171,10 +200,10 @@ export class NexusAudioEngine {
     }
 
     // 2. Fallback to Web Speech API
-    this.fallbackWebSpeech(text, effectiveSpeed, effectivePitch, options?.accent);
+    this.fallbackWebSpeech(text, effectiveSpeed, effectivePitch, options?.accent, this.volume);
   }
 
-  private fallbackWebSpeech(text: string, speed: number = 1.0, pitch: number = 1.0, accent?: string) {
+  private fallbackWebSpeech(text: string, speed: number = 1.0, pitch: number = 1.0, accent?: string, volume?: number) {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       if (this.onStatusChangeCallback) this.onStatusChangeCallback('idle');
       return;
@@ -183,6 +212,7 @@ export class NexusAudioEngine {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = speed;
     utterance.pitch = pitch;
+    utterance.volume = typeof volume === 'number' ? Math.max(0, Math.min(1, volume)) : this.volume;
 
     if (accent && 'getVoices' in window.speechSynthesis) {
       const voices = window.speechSynthesis.getVoices();

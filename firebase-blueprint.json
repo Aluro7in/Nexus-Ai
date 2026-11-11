@@ -28,6 +28,7 @@
         "voiceAccent": { "type": "string", "maxLength": 64 },
         "voiceSpeed": { "type": "number" },
         "voicePitch": { "type": "number" },
+        "voiceVolume": { "type": "number" },
         "ambientTheme": { "type": "string", "maxLength": 64 },
         "autoSpeak": { "type": "boolean" },
         "speechRate": { "type": "number" },

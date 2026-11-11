@@ -1,4 +1,5 @@
 import { handleApiRoute, verifyLiveSessionToken } from './server/api.ts';
+import { NexusAudioEngine } from './src/lib/audio.ts';
 import fs from 'fs';
 import path from 'path';
 
@@ -747,6 +748,81 @@ async function runTestSuite() {
     const appCode = fs.readFileSync('src/App.tsx', 'utf8');
     if (!appCode.includes("setAudioStatus('executing')")) {
       throw new Error('App.tsx does not set executing status during tool and routine execution');
+    }
+  });
+
+  // 30. Assistant Output Volume Slider & Real-time AudioEngine Adjustments
+  await recordTest('Assistant Voice Settings', 'NexusAudioEngine applies real-time volume adjustments and SettingsView integrates output volume slider', async () => {
+    // 1. AudioEngine instance and volume clamping tests
+    const engine = new NexusAudioEngine();
+    if (typeof engine.getVolume !== 'function' || typeof engine.setVolume !== 'function') {
+      throw new Error('NexusAudioEngine is missing setVolume or getVolume methods');
+    }
+
+    if (engine.getVolume() !== 1.0) {
+      throw new Error(`Expected initial volume 1.0, got ${engine.getVolume()}`);
+    }
+
+    // Set valid volume
+    const vol60 = engine.setVolume(0.6);
+    if (vol60 !== 0.6 || engine.getVolume() !== 0.6) {
+      throw new Error(`setVolume(0.6) failed, got ${vol60} and ${engine.getVolume()}`);
+    }
+
+    // Clamp lower bound
+    const volNeg = engine.setVolume(-0.25);
+    if (volNeg !== 0 || engine.getVolume() !== 0) {
+      throw new Error(`setVolume(-0.25) did not clamp to 0.0, got ${volNeg}`);
+    }
+
+    // Clamp upper bound
+    const volHigh = engine.setVolume(1.85);
+    if (volHigh !== 1.0 || engine.getVolume() !== 1.0) {
+      throw new Error(`setVolume(1.85) did not clamp to 1.0, got ${volHigh}`);
+    }
+
+    // Real-time active playback adjustment verification
+    const mockAudio: any = { volume: 0.3, paused: false };
+    (engine as any).currentAudio = mockAudio;
+
+    engine.setVolume(0.75);
+    if (mockAudio.volume !== 0.75) {
+      throw new Error(`Active playback audio.volume was not updated in real-time, expected 0.75, got ${mockAudio.volume}`);
+    }
+
+    // 2. Types & Schema verification
+    const typesCode = fs.readFileSync('src/types/index.ts', 'utf8');
+    if (!typesCode.includes('voiceVolume?: number')) {
+      throw new Error('src/types/index.ts lacks voiceVolume?: number on UserPreference');
+    }
+
+    const blueprintCode = fs.readFileSync('firebase-blueprint.json', 'utf8');
+    if (!blueprintCode.includes('"voiceVolume": { "type": "number" }') && !blueprintCode.includes('"voiceVolume"')) {
+      throw new Error('firebase-blueprint.json lacks voiceVolume in schema properties');
+    }
+
+    // 3. SettingsView UI component inspection
+    const settingsCode = fs.readFileSync('src/components/views/SettingsView.tsx', 'utf8');
+    if (!settingsCode.includes('id="assistant-output-volume-slider"') && !settingsCode.includes('assistant-output-volume-slider')) {
+      throw new Error('SettingsView lacks accessible assistant-output-volume-slider input');
+    }
+    if (!settingsCode.includes('handleVolumeChange') || !settingsCode.includes('audioEngine.setVolume')) {
+      throw new Error('SettingsView lacks real-time audioEngine.setVolume call on volume slider changes');
+    }
+    if (!settingsCode.includes('handleToggleMuteVolume') || (!settingsCode.includes('Mute') && !settingsCode.includes('0%'))) {
+      throw new Error('SettingsView lacks quick mute toggle or preset controls');
+    }
+
+    // 4. App.tsx synchronization inspection
+    const appCode = fs.readFileSync('src/App.tsx', 'utf8');
+    if (!appCode.includes('voiceVolume: 1.0')) {
+      throw new Error('App.tsx lacks voiceVolume in default preferences');
+    }
+    if (!appCode.includes('audioEngine.setVolume(userPrefs.voiceVolume)')) {
+      throw new Error('App.tsx does not initialize audioEngine volume from loaded user preferences');
+    }
+    if (!appCode.includes('audioEngine.setVolume(newPrefs.voiceVolume)')) {
+      throw new Error('App.tsx does not update audioEngine volume when preferences change in settings');
     }
   });
 

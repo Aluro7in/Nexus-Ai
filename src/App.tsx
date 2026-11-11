@@ -122,6 +122,7 @@ export default function App() {
     voiceAccent: 'neutral-american',
     voiceSpeed: 1.0,
     voicePitch: 1.0,
+    voiceVolume: 1.0,
     ambientTheme: 'cyber-dark',
     autoSpeak: true,
     wakeWordEnabled: true,
@@ -560,6 +561,9 @@ export default function App() {
 
           if (userPrefs) {
             setPreferences((prev) => ({ ...prev, ...userPrefs }));
+            if (userPrefs.voiceVolume !== undefined) {
+              audioEngine.setVolume(userPrefs.voiceVolume);
+            }
             if (userPrefs.ambientTheme && (userPrefs.ambientTheme === 'dark' || userPrefs.ambientTheme === 'light' || userPrefs.ambientTheme === 'system')) {
               setTheme(userPrefs.ambientTheme as ThemeMode);
             }
@@ -573,6 +577,7 @@ export default function App() {
               voiceAccent: 'neutral-american',
               voiceSpeed: 1.0,
               voicePitch: 1.0,
+              voiceVolume: 1.0,
               ambientTheme: 'cyber-dark',
               autoSpeak: true,
               wakeWordEnabled: true,
@@ -748,7 +753,12 @@ export default function App() {
           saveMessageToFirestore(botMsg, user.uid).catch(console.warn);
         }
 
-        await audioEngine.speak(reply, preferences.voiceName, preferences.autoSpeak);
+        await audioEngine.speak(reply, preferences.voiceName, preferences.autoSpeak, {
+          speed: preferences.voiceSpeed,
+          pitch: preferences.voicePitch,
+          accent: preferences.voiceAccent,
+          volume: preferences.voiceVolume,
+        });
         setAudioStatus('idle');
         return;
       }
@@ -805,7 +815,12 @@ export default function App() {
           saveMessageToFirestore(botMsg, user.uid).catch(console.warn);
         }
 
-        await audioEngine.speak(reply, preferences.voiceName, preferences.autoSpeak);
+        await audioEngine.speak(reply, preferences.voiceName, preferences.autoSpeak, {
+          speed: preferences.voiceSpeed,
+          pitch: preferences.voicePitch,
+          accent: preferences.voiceAccent,
+          volume: preferences.voiceVolume,
+        });
         setAudioStatus('idle');
         return;
       }
@@ -948,6 +963,7 @@ export default function App() {
         speed: preferences.voiceSpeed,
         pitch: preferences.voicePitch,
         accent: preferences.voiceAccent,
+        volume: preferences.voiceVolume,
       });
     } catch (err: any) {
       console.error('Command processing error:', err);
@@ -1195,7 +1211,12 @@ export default function App() {
   };
 
   const handleSceneActivate = (sceneName: string) => {
-    audioEngine.speak(`Activating smart home scene: ${sceneName}`, preferences.voiceName, true);
+    audioEngine.speak(`Activating smart home scene: ${sceneName}`, preferences.voiceName, true, {
+      speed: preferences.voiceSpeed,
+      pitch: preferences.voicePitch,
+      accent: preferences.voiceAccent,
+      volume: preferences.voiceVolume,
+    });
     setAssistantReply(`Smart Home Scene "${sceneName}" activated via Matter bridge.`);
   };
 
@@ -1473,6 +1494,9 @@ export default function App() {
               onUpdatePreferences={(newPrefs) => {
                 const updated = { ...preferences, ...newPrefs };
                 setPreferences(updated);
+                if (newPrefs.voiceVolume !== undefined) {
+                  audioEngine.setVolume(newPrefs.voiceVolume);
+                }
                 if (user) {
                   saveUserPreferences(updated).catch(console.warn);
                 }
